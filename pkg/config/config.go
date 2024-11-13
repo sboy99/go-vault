@@ -13,6 +13,7 @@ type Arcitecture string
 
 type Config struct {
 	Arcitecture Arcitecture `yaml:"arcitecture"`
+	IsUsingPort bool        `yaml:"IsUsingPort"`
 	Folder      string      `yaml:"folder"`
 }
 
