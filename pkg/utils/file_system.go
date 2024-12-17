@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // ReadFile reads the content of a file and returns it as a string.
@@ -73,6 +74,17 @@ func CreateDirectory(dirPath string) error {
 	return os.MkdirAll(dirPath, 0755)
 }
 
+// CreateDirIfNotExist creates a new directory if it does not already exist.
+func CreateDirIfNotExist(dirPath string) error {
+	if IsPathContainsFile(dirPath) {
+		dirPath = filepath.Dir(dirPath)
+	}
+	if !DirectoryExists(dirPath) {
+		return CreateDirectory(dirPath)
+	}
+	return nil
+}
+
 // ListFiles lists all files in a given directory.
 func ListFiles(dirPath string) ([]string, error) {
 	files := []string{}
@@ -124,4 +136,11 @@ func CopyFile(srcPath, destPath string) error {
 // RenameFile renames a file from oldPath to newPath.
 func RenameFile(oldPath, newPath string) error {
 	return os.Rename(oldPath, newPath)
+}
+
+// IsPathContainsFile checks if the path contains a file.
+func IsPathContainsFile(path string) bool {
+	dirs := strings.Split(path, "/")
+	last := dirs[len(dirs)-1]
+	return strings.Contains(last, ".ts")
 }

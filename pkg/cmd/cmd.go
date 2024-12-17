@@ -18,6 +18,5 @@ func Execute() error {
 
 func init() {
 	// Add subcommands
-	rootCmd.AddCommand(initCmd)
-	rootCmd.AddCommand(createCmd)
+
 }
