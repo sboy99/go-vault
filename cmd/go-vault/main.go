@@ -16,7 +16,7 @@ func main() {
 	}
 	// Service
 	service := services.NewDatabaseService()
-	if err := service.Connect(strategies.POSTGRES, "postgres", "localhost", 5432, "postgres", "postgres"); err != nil {
+	if err := service.Backup(strategies.POSTGRES, "pluto", "localhost", 5432, "postgres", "postgres"); err != nil {
 		logger.Panic("Error connecting to database... %v", err)
 	}
 

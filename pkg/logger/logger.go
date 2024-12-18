@@ -52,7 +52,7 @@ func Log(level LogLevelEnum, format string, v ...interface{}) {
 
 // Debug logs a debug message.
 func Debug(format string, v ...interface{}) {
-	Log(DEBUG, format, v...)
+	Log(DEBUG, fmt.Sprintf(">>> %v", format), v...)
 }
 
 // Info logs an informational message.

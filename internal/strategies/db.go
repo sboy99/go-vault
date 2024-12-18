@@ -38,6 +38,14 @@ func (d *Database) Connect(dbType DatabaseEnum, name string, host string, port i
 	return nil
 }
 
+func (d *Database) Close(dbType DatabaseEnum) error {
+	db := d.getDatabase(dbType)
+	if err := db.Close(); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (d *Database) Ping(dbType DatabaseEnum) error {
 	db := d.getDatabase(dbType)
 	if err := db.Ping(); err != nil {

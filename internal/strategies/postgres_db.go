@@ -1,12 +1,11 @@
 package strategies
 
 import (
-	"bytes"
 	"database/sql"
 	"fmt"
-	"os/exec"
 
 	_ "github.com/lib/pq"
+	pgdump "github.com/sboy99/go-vault/pkg/pg_dump"
 )
 
 type PostgresDB struct {
@@ -53,16 +52,8 @@ func (p *PostgresDB) Ping() error {
 }
 
 func (p *PostgresDB) Backup() ([]byte, error) {
-	var cmdout, cmderr bytes.Buffer
-	cmd := exec.Command("pg_dump", "--host", p.host, "--port", fmt.Sprintf("%d", p.port), "--username", p.username, "--dbname", p.name)
-	cmd.Env = append(cmd.Env, fmt.Sprintf("PGPASSWORD=%s", p.password))
-	cmd.Stdout = &cmdout
-	cmd.Stderr = &cmderr
-	if err := cmd.Run(); err != nil {
-		return nil, err
-	}
-
-	return cmdout.Bytes(), nil
+	pgDump := pgdump.NewPgDump(p.db)
+	return pgDump.Dump()
 }
 
 func (p *PostgresDB) Restore(data []byte) error {

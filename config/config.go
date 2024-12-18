@@ -13,10 +13,10 @@ type EnvEnum string
 
 type TConfig struct {
 	Env      EnvEnum
-	Database TDatabaseConfig
+	Database DatabaseConfig
 }
 
-type TDatabaseConfig struct {
+type DatabaseConfig struct {
 	Name     string
 	Host     string
 	Port     int
@@ -51,22 +51,22 @@ func LoadConfig() {
 	}
 
 	if hasMissingEnv {
-		logger.Panic("Missing environment variables: %v" + strings.Join(requiredEnv, ", "))
+		logger.Panic("Missing environment variables: %v", strings.Join(requiredEnv, ", "))
 	}
 
 	if hasInvalidNumericEnv {
-		logger.Panic("Invalid numeric environment variables: %v" + strings.Join(invalidNumericEnv, ", "))
+		logger.Panic("Invalid numeric environment variables: %v", strings.Join(invalidNumericEnv, ", "))
 	}
 
 	if hasInvalidBoolEnv {
-		logger.Panic("Invalid boolean environment variables: %v" + strings.Join(invalidBoolEnv, ", "))
+		logger.Panic("Invalid boolean environment variables: %v", strings.Join(invalidBoolEnv, ", "))
 	}
 
 	logger.Info("Config loaded successfully")
 }
 
-func loadDatabaseConfig() TDatabaseConfig {
-	databaseConfig := TDatabaseConfig{
+func loadDatabaseConfig() DatabaseConfig {
+	databaseConfig := DatabaseConfig{
 		Name:     loadString("DB_NAME"),
 		Host:     loadString("DB_HOST"),
 		Port:     loadInt("DB_PORT"),
