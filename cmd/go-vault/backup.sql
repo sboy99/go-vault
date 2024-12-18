@@ -1,3 +1,19 @@
+--
+-- PostgreSQL database dump
+--
+--
+-- Database version: PostgreSQL 15.2 (Debian 15.2-1.pgdg110+1) on x86_64-pc-linux-gnu, compiled by gcc (Debian 10.2.1-6) 10.2.1 20210110, 64-bit
+--
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SET check_function_bodies = FALSE;
+SET client_min_messages = warning;
+
+--
+-- Create tables
+--
 CREATE TABLE migrations (
     id integer,
     timestamp bigint,
@@ -110,4 +126,29 @@ CREATE TABLE transactions (
     to_address text,
     status text
 );
+
+--
+-- Create sequences
+--
+CREATE SEQUENCE public.migrations_id_seq;
+ALTER TABLE public.migrations ALTER COLUMN id SET DEFAULT nextval('public.migrations_id_seq'::regclass);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
