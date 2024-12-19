@@ -40,11 +40,23 @@ func (p *PgDump) Dump() ([]byte, error) {
 	dumpSql.WriteString("SET check_function_bodies = FALSE;\n")
 	dumpSql.WriteString("SET client_min_messages = warning;\n\n")
 
-	createTableStatement, err := p.generateCreateTableStatement(tables)
+	createTableStatements, err := p.generateCreateTableStatementsForTables(tables)
 	if err != nil {
 		return nil, err
 	}
-	dumpSql.WriteString(createTableStatement)
+	dumpSql.WriteString(createTableStatements)
+
+	createSequenceStatements, err := p.generateCreateSequenceStatenentsForTables(tables)
+	if err != nil {
+		return nil, err
+	}
+	dumpSql.WriteString(createSequenceStatements)
+
+	createPrimaryKeyStatements, err := p.generateCreatePrimaryKeyStatementsForTables(tables)
+	if err != nil {
+		return nil, err
+	}
+	dumpSql.WriteString(createPrimaryKeyStatements)
 
 	return dumpSql.Bytes(), nil
 }
@@ -76,14 +88,52 @@ func (p *PgDump) listTables() ([]string, error) {
 	return tables, nil
 }
 
-func (p *PgDump) generateCreateTableStatement(tables []string) (string, error) {
+func (p *PgDump) generateCreateTableStatementsForTables(tables []string) (string, error) {
 	var dumpSql bytes.Buffer
+	dumpSql.WriteString(makeSqlComment("Create Tables"))
 	for _, table := range tables {
 		createTableStatement, err := p.getCreateTableStatement(table)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("error getting create table statement for table %s: %v", table, err)
+		}
+		if createTableStatement == "" {
+			continue
 		}
 		dumpSql.WriteString(createTableStatement)
+		dumpSql.WriteString("\n\n")
+	}
+	return dumpSql.String(), nil
+}
+
+func (p *PgDump) generateCreatePrimaryKeyStatementsForTables(tables []string) (string, error) {
+	var dumpSql bytes.Buffer
+	dumpSql.WriteString(makeSqlComment("Create Primary Keys"))
+	for _, table := range tables {
+		pkStatement, err := p.getCreatePrimaryKeyStatement(table)
+		if err != nil {
+			return "", fmt.Errorf("error getting create primary key statement for table %s: %v", table, err)
+		}
+		if pkStatement == "" {
+			continue
+		}
+		dumpSql.WriteString(pkStatement)
+		dumpSql.WriteString("\n\n")
+	}
+	return dumpSql.String(), nil
+}
+
+func (p *PgDump) generateCreateSequenceStatenentsForTables(tables []string) (string, error) {
+	var dumpSql bytes.Buffer
+	dumpSql.WriteString(makeSqlComment("Create Sequences"))
+	for _, table := range tables {
+		sequences, err := p.getCreateSequenceStatement(table)
+		if err != nil {
+			return "", err
+		}
+		if sequences == "" {
+			continue
+		}
+		dumpSql.WriteString(sequences)
 		dumpSql.WriteString("\n\n")
 	}
 	return dumpSql.String(), nil
@@ -112,4 +162,55 @@ func (p *PgDump) getCreateTableStatement(tableName string) (string, error) {
 	}
 
 	return fmt.Sprintf("CREATE TABLE %s (\n    %s\n);", tableName, strings.Join(columns, ",\n    ")), nil
+}
+
+func (p *PgDump) getCreateSequenceStatement(tableName string) (string, error) {
+	var sequencesSQL strings.Builder
+
+	rows, err := p.db.Query(getCreateSequenceQuery("public"), tableName)
+	if err != nil {
+		return "", fmt.Errorf("error querying sequences for table %s: %v", tableName, err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var seqCreation, seqOwned, colDefault string
+		if err := rows.Scan(&seqCreation, &seqOwned, &colDefault); err != nil {
+			return "", fmt.Errorf("error scanning sequence information: %v", err)
+		}
+
+		// Here we directly use the sequence creation script.
+		// The seqOwned might not be necessary if we're focusing on creation and default value setting.
+		sequencesSQL.WriteString(seqCreation + "\n" + colDefault + "\n")
+	}
+
+	if err := rows.Err(); err != nil {
+		return "", fmt.Errorf("error iterating over sequences: %v", err)
+	}
+
+	return sequencesSQL.String(), nil
+}
+
+func (p *PgDump) getCreatePrimaryKeyStatement(tableName string) (string, error) {
+	var pksSQL strings.Builder
+	rows, err := p.db.Query(getCreatePrimaryKeyQuery("public"), tableName)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+
+	if rows.Next() {
+		var constraintName, constraintDef string
+		if err := rows.Scan(&constraintName, &constraintDef); err != nil {
+			return "", fmt.Errorf("error scanning primary key information: %v", err)
+		}
+		pksSQL.WriteString(fmt.Sprintf("ALTER TABLE public.%s ADD CONSTRAINT %s %s;\n",
+			tableName, constraintName, constraintDef))
+	}
+
+	if err := rows.Err(); err != nil {
+		return "", fmt.Errorf("error iterating over primary keys: %v", err)
+	}
+
+	return pksSQL.String(), nil
 }
