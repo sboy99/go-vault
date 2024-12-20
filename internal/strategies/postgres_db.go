@@ -3,6 +3,7 @@ package strategies
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	_ "github.com/lib/pq"
 	pgdump "github.com/sboy99/go-vault/pkg/pg_dump"
@@ -57,5 +58,12 @@ func (p *PostgresDB) Backup() ([]byte, error) {
 }
 
 func (p *PostgresDB) Restore(data []byte) error {
+	sqlContent := string(data)
+	statements := strings.Split(sqlContent, ";")
+	for _, statement := range statements {
+		if _, err := p.db.Exec(statement); err != nil {
+			return fmt.Errorf("Error executing statement: %s\nErr: %v", statement, err)
+		}
+	}
 	return nil
 }
