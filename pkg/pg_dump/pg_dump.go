@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	_ "github.com/lib/pq"
+	"github.com/sboy99/go-vault/pkg/logger"
 )
 
 type PgDump struct {
@@ -57,6 +58,12 @@ func (p *PgDump) Dump() ([]byte, error) {
 		return nil, err
 	}
 	dumpSql.WriteString(createPrimaryKeyStatements)
+
+	tableDataCopyStatements, err := p.copyDataOfTables(tables)
+	if err != nil {
+		return nil, err
+	}
+	dumpSql.WriteString(tableDataCopyStatements)
 
 	return dumpSql.Bytes(), nil
 }
@@ -139,6 +146,23 @@ func (p *PgDump) generateCreateSequenceStatenentsForTables(tables []string) (str
 	return dumpSql.String(), nil
 }
 
+func (p *PgDump) copyDataOfTables(tables []string) (string, error) {
+	var dumpSql bytes.Buffer
+	dumpSql.WriteString(makeSqlComment("Copy Table Data"))
+	for _, table := range tables {
+		tableDataCopyStatement, err := p.getTableDataCopyStatement(table)
+		if err != nil {
+			return "", fmt.Errorf("error getting table data copy statement for table %s: %v", table, err)
+		}
+		if tableDataCopyStatement == "" {
+			continue
+		}
+		dumpSql.WriteString(tableDataCopyStatement)
+		dumpSql.WriteString("\n\n")
+	}
+	return dumpSql.String(), nil
+}
+
 func (p *PgDump) getCreateTableStatement(tableName string) (string, error) {
 	query := fmt.Sprintf("SELECT column_name, data_type, character_maximum_length FROM information_schema.columns WHERE table_name = '%s'", tableName)
 	rows, err := p.db.Query(query)
@@ -213,4 +237,42 @@ func (p *PgDump) getCreatePrimaryKeyStatement(tableName string) (string, error) 
 	}
 
 	return pksSQL.String(), nil
+}
+
+func (p *PgDump) getTableDataCopyStatement(tableName string) (string, error) {
+	query := fmt.Sprintf("SELECT * FROM %s", tableName)
+	rows, err := p.db.Query(query)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+
+	columns, err := rows.Columns()
+	if err != nil {
+		return "", err
+	}
+
+	values := make([]sql.RawBytes, len(columns))
+	scanArgs := make([]interface{}, len(values))
+	for i := range values {
+		scanArgs[i] = &values[i]
+	}
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("COPY %s (%s) FROM stdin;\n", tableName, strings.Join(columns, ", ")))
+	for rows.Next() {
+		err := rows.Scan(scanArgs...)
+		if err != nil {
+			return "", err
+		}
+		var valueStrings []string
+		for _, value := range values {
+			valueStrings = append(valueStrings, string(value))
+		}
+		logger.Debug("Row: %v", valueStrings)
+		output.WriteString(strings.Join(valueStrings, "\t") + "\n")
+	}
+	output.WriteString("\\.\n")
+
+	return output.String(), nil
 }
