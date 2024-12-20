@@ -12,7 +12,7 @@ type DatabaseService struct {
 
 func NewDatabaseService() *DatabaseService {
 	return &DatabaseService{
-		storage:  strategies.NewStorage("."),
+		storage:  strategies.NewStorage("./generated"),
 		database: strategies.NewDatabase(),
 	}
 }

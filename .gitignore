@@ -1,0 +1,41 @@
+# Binary files
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Build directories
+/build/
+bin/
+
+# Go modules
+vendor/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.iml
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Logs and debugging
+*.log
+*.out
+*.test
+
+# Coverage reports
+coverage.out
+
+# Temporary files
+*.tmp
+*.swp
+
+# Dependency management tools
+.godeps/
+dep/
+Godeps/
+
+# Output
+generated/
