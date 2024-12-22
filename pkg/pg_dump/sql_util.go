@@ -6,6 +6,23 @@ func makeSqlComment(comment string) string {
 	return fmt.Sprintf("--\n-- %s\n--\n", comment)
 }
 
+func getListSchemasQuery() string {
+	return `
+SELECT schema_name
+FROM information_schema.schemata
+WHERE schema_name NOT IN ('information_schema', 'pg_catalog')
+ORDER BY schema_name;
+`
+}
+
+func getListTablesQuery(schema string) string {
+	return fmt.Sprintf(`SELECT table_name FROM information_schema.tables WHERE table_schema = '%s'`, schema)
+}
+
+func getListExtensionsQuery() string {
+	return `SELECT extname FROM pg_extension;`
+}
+
 func getCreateSequenceQuery(schema string) string {
 	return fmt.Sprintf(`
 SELECT 'CREATE SEQUENCE ' || n.nspname || '.' || c.relname || ';' as seq_creation,
