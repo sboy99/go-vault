@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	_ "github.com/lib/pq"
-	"github.com/sboy99/go-vault/pkg/logger"
 )
 
 type PgDump struct {
@@ -26,6 +25,11 @@ func (p *PgDump) Dump() ([]byte, error) {
 		return nil, err
 	}
 
+	schemas, err := p.listSchemas()
+	if err != nil {
+		return nil, err
+	}
+
 	tables, err := p.listTables()
 	if err != nil {
 		return nil, err
@@ -40,6 +44,18 @@ func (p *PgDump) Dump() ([]byte, error) {
 	dumpSql.WriteString("SET standard_conforming_strings = on;\n")
 	dumpSql.WriteString("SET check_function_bodies = FALSE;\n")
 	dumpSql.WriteString("SET client_min_messages = warning;\n\n")
+
+	createSchemaStatement, err := p.generateCreateSchemaStatement(schemas)
+	if err != nil {
+		return nil, err
+	}
+	dumpSql.WriteString(createSchemaStatement)
+
+	createExtensionStatements, err := p.generateCreateExtensionStatements()
+	if err != nil {
+		return nil, err
+	}
+	dumpSql.WriteString(createExtensionStatements)
 
 	createTableStatements, err := p.generateCreateTableStatementsForTables(tables)
 	if err != nil {
@@ -76,8 +92,27 @@ func (p *PgDump) getDatabaseVersion() (string, error) {
 	return version, nil
 }
 
+func (p *PgDump) listSchemas() ([]string, error) {
+	rows, err := p.db.Query(getListSchemasQuery())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var schemas []string
+	for rows.Next() {
+		var schema string
+		if err := rows.Scan(&schema); err != nil {
+			return nil, err
+		}
+		schemas = append(schemas, schema)
+	}
+
+	return schemas, nil
+}
+
 func (p *PgDump) listTables() ([]string, error) {
-	rows, err := p.db.Query("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")
+	rows, err := p.db.Query(getListTablesQuery("public"))
 	if err != nil {
 		return nil, err
 	}
@@ -93,6 +128,45 @@ func (p *PgDump) listTables() ([]string, error) {
 	}
 
 	return tables, nil
+}
+
+func (p *PgDump) generateCreateSchemaStatement(schemas []string) (string, error) {
+	var dumpSql bytes.Buffer
+	dumpSql.WriteString(makeSqlComment("Create Schemas"))
+	for _, schema := range schemas {
+		createSchemaStatement, err := p.getCreateSchemaStatement(schema)
+		if err != nil {
+			return "", fmt.Errorf("error getting create schema statement for schema %s: %v", schema, err)
+		}
+		if createSchemaStatement == "" {
+			continue
+		}
+		dumpSql.WriteString(createSchemaStatement)
+		dumpSql.WriteString("\n")
+	}
+	dumpSql.WriteString("\n")
+	return dumpSql.String(), nil
+}
+
+func (p *PgDump) generateCreateExtensionStatements() (string, error) {
+	var dumpSql bytes.Buffer
+	dumpSql.WriteString(makeSqlComment("Create Extensions"))
+	rows, err := p.db.Query(getListExtensionsQuery())
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var extName string
+		if err := rows.Scan(&extName); err != nil {
+			return "", err
+		}
+		dumpSql.WriteString(fmt.Sprintf(`CREATE EXTENSION IF NOT EXISTS "%s";`, extName))
+		dumpSql.WriteString("\n")
+	}
+	dumpSql.WriteString("\n")
+	return dumpSql.String(), nil
 }
 
 func (p *PgDump) generateCreateTableStatementsForTables(tables []string) (string, error) {
@@ -124,8 +198,9 @@ func (p *PgDump) generateCreatePrimaryKeyStatementsForTables(tables []string) (s
 			continue
 		}
 		dumpSql.WriteString(pkStatement)
-		dumpSql.WriteString("\n\n")
+		dumpSql.WriteString("\n")
 	}
+	dumpSql.WriteString("\n")
 	return dumpSql.String(), nil
 }
 
@@ -141,26 +216,14 @@ func (p *PgDump) generateCreateSequenceStatenentsForTables(tables []string) (str
 			continue
 		}
 		dumpSql.WriteString(sequences)
-		dumpSql.WriteString("\n\n")
+		dumpSql.WriteString("\n")
 	}
+	dumpSql.WriteString("\n")
 	return dumpSql.String(), nil
 }
 
-func (p *PgDump) copyDataOfTables(tables []string) (string, error) {
-	var dumpSql bytes.Buffer
-	dumpSql.WriteString(makeSqlComment("Copy Table Data"))
-	for _, table := range tables {
-		tableDataCopyStatement, err := p.getTableDataCopyStatement(table)
-		if err != nil {
-			return "", fmt.Errorf("error getting table data copy statement for table %s: %v", table, err)
-		}
-		if tableDataCopyStatement == "" {
-			continue
-		}
-		dumpSql.WriteString(tableDataCopyStatement)
-		dumpSql.WriteString("\n\n")
-	}
-	return dumpSql.String(), nil
+func (p *PgDump) getCreateSchemaStatement(schemaName string) (string, error) {
+	return fmt.Sprintf("CREATE SCHEMA %s IF NOT EXISTS;", schemaName), nil
 }
 
 func (p *PgDump) getCreateTableStatement(tableName string) (string, error) {
@@ -269,10 +332,26 @@ func (p *PgDump) getTableDataCopyStatement(tableName string) (string, error) {
 		for _, value := range values {
 			valueStrings = append(valueStrings, string(value))
 		}
-		logger.Debug("Row: %v", valueStrings)
 		output.WriteString(strings.Join(valueStrings, "\t") + "\n")
 	}
 	output.WriteString("\\.\n")
 
 	return output.String(), nil
+}
+
+func (p *PgDump) copyDataOfTables(tables []string) (string, error) {
+	var dumpSql bytes.Buffer
+	dumpSql.WriteString(makeSqlComment("Copy Table Data"))
+	for _, table := range tables {
+		tableDataCopyStatement, err := p.getTableDataCopyStatement(table)
+		if err != nil {
+			return "", fmt.Errorf("error getting table data copy statement for table %s: %v", table, err)
+		}
+		if tableDataCopyStatement == "" {
+			continue
+		}
+		dumpSql.WriteString(tableDataCopyStatement)
+		dumpSql.WriteString("\n\n")
+	}
+	return dumpSql.String(), nil
 }
