@@ -6,17 +6,12 @@ import (
 
 // rootCmd represents the base command
 var rootCmd = &cobra.Command{
-	Use:   "Go Nester",
-	Short: "Nestjs CLI tool",
-	Long:  "CLI tool for generating files and code snippets for Nestjs applications, written in Go.",
+	Use:   "go-vault",
+	Short: "CLI tool for db backups and restores",
+	Long:  "Manage your database backups and restores with ease.",
 }
 
 // Execute runs the root command
 func Execute() error {
 	return rootCmd.Execute()
-}
-
-func init() {
-	// Add subcommands
-
 }
