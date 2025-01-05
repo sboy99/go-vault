@@ -39,3 +39,7 @@ Godeps/
 
 # Output
 generated/
+
+# Config
+config.json
+config.yml
