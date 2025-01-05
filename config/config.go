@@ -8,7 +8,7 @@ import (
 
 type Config struct {
 	App app
-	DB  database
+	DB  Database
 }
 
 type app struct {
@@ -16,10 +16,10 @@ type app struct {
 	Version string
 }
 
-type DBEnum string
-type database struct {
+type DatabaseEnum string
+type Database struct {
 	Name     string
-	Type     DBEnum
+	Type     DatabaseEnum
 	Host     string
 	Port     int
 	Username string
@@ -27,22 +27,22 @@ type database struct {
 }
 
 const (
-	POSTGRESQL DBEnum = "postgresql"
-	MYSQL      DBEnum = "mysql"
-	MONGODB    DBEnum = "mongodb"
+	POSTGRESQL DatabaseEnum = "POSTGRESQL"
+	MYSQL      DatabaseEnum = "MYSQL"
+	MONGODB    DatabaseEnum = "MONGODB"
 )
 
 func init() {
 	viper.SetConfigName("config")
 	viper.AddConfigPath(".")
 	viper.SetConfigType("yml")
+	setDefaults()
 }
 
 func Load() error {
 	if err := viper.ReadInConfig(); err != nil {
 		return fmt.Errorf("No config is setup please run `go-vault setup`")
 	}
-	setDefaults()
 	if err := validateConfig(); err != nil {
 		return err
 	}
@@ -73,9 +73,9 @@ func GetConfig() *Config {
 			Name:    viper.GetString("app.name"),
 			Version: viper.GetString("app.version"),
 		},
-		DB: database{
+		DB: Database{
 			Name:     viper.GetString("db.name"),
-			Type:     DBEnum(viper.GetString("db.type")),
+			Type:     DatabaseEnum(viper.GetString("db.type")),
 			Host:     viper.GetString("db.host"),
 			Port:     viper.GetInt("db.port"),
 			Username: viper.GetString("db.username"),

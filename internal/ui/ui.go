@@ -1,88 +1,95 @@
 package ui
 
 import (
-	"os/user"
-
 	"github.com/manifoldco/promptui"
 	"github.com/sboy99/go-vault/config"
-	"github.com/sboy99/go-vault/internal/strategies"
+	"github.com/sboy99/go-vault/pkg/utils"
 )
 
-func DisplaySelectDBPrompt() (strategies.DatabaseEnum, error) {
+func DisplaySelectDatabaseTypePrompt() (config.DatabaseEnum, error) {
 	// Prompt for DB selection //
 	prompt := promptui.Select{
 		Label: "Select DB",
-		Items: []strategies.DatabaseEnum{strategies.POSTGRES, strategies.MYSQL, strategies.MONGO},
+		Items: []config.DatabaseEnum{config.POSTGRESQL, config.MYSQL, config.MONGODB},
 	}
 	// Run the prompt //
 	_, result, err := prompt.Run()
 	if err != nil {
 		return "", err
 	}
-	return strategies.DatabaseEnum(result), nil
+	return config.DatabaseEnum(result), nil
 }
 
-func DisplayDBConfigPrompt() (*config.DBConfig, error) {
-	dbConfig := config.NewDBConfig()
-
+func DisplayInputDatabaseNamePrompt(dbType config.DatabaseEnum) (string, error) {
 	// Prompt for DB name //
-	dbNamePromt := promptui.Prompt{
-		Label: "Enter DB Name",
+	prompt := promptui.Prompt{
+		Label:   "Enter DB Name",
+		Default: getDatabaseName(dbType),
 	}
-	dbName, err := dbNamePromt.Run()
+	// Run the prompt //
+	result, err := prompt.Run()
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	dbConfig.Name = dbName
+	return result, nil
+}
 
+func DisplayInputDatabaseHostPrompt() (string, error) {
 	// Prompt for DB host //
-	dbHostPromt := promptui.Prompt{
+	prompt := promptui.Prompt{
 		Label:   "Enter DB Host",
 		Default: "localhost",
 	}
-	dbHost, err := dbHostPromt.Run()
+	// Run the prompt //
+	result, err := prompt.Run()
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	dbConfig.Host = dbHost
+	return result, nil
+}
 
+func DisplayInputDatabasePortPrompt(dbType config.DatabaseEnum) (int, error) {
 	// Prompt for DB port //
-	dbPortPromt := promptui.Prompt{
+	prompt := promptui.Prompt{
 		Label:    "Enter DB Port",
 		Validate: portValidator,
-		Default:  "5432",
+		Default:  getDatabasePort(dbType),
 	}
-	dbPort, err := dbPortPromt.Run()
+	// Run the prompt //
+	result, err := prompt.Run()
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
-	dbConfig.Port = dbPort
+	resultInt, err := utils.ParseInt(result)
+	if err != nil {
+		return 0, err
+	}
+	return resultInt, nil
+}
 
-	// Prompt for DB username //
-	currentUser, err := user.Current()
-	if err != nil {
-		return nil, err
-	}
-	dbUsernamePromt := promptui.Prompt{
+func DisplayInputDatabaseUsernamePrompt(dbType config.DatabaseEnum) (string, error) {
+	prompt := promptui.Prompt{
 		Label:   "Enter DB Username",
-		Default: currentUser.Username,
+		Default: getDatabaseUser(dbType),
 	}
-	dbUsername, err := dbUsernamePromt.Run()
+	// Run the prompt //
+	result, err := prompt.Run()
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	dbConfig.User = dbUsername
+	return result, nil
+}
 
+func DisplayInputDatabasePasswordPrompt() (string, error) {
 	// Prompt for DB password //
-	dbPasswordPromt := promptui.Prompt{
+	prompt := promptui.Prompt{
 		Label: "Enter DB Password",
 		Mask:  '*',
 	}
-	dbPassword, err := dbPasswordPromt.Run()
+	// Run the prompt //
+	result, err := prompt.Run()
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	dbConfig.Password = dbPassword
-
-	return dbConfig, nil
+	return result, nil
 }
