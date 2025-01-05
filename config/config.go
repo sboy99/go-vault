@@ -1,107 +1,85 @@
 package config
 
 import (
-	"os"
-	"strings"
+	"fmt"
 
-	"github.com/joho/godotenv"
-	"github.com/sboy99/go-vault/pkg/logger"
-	"github.com/sboy99/go-vault/pkg/utils"
+	"github.com/spf13/viper"
 )
 
-type EnvEnum string
-
-type TConfig struct {
-	Env      EnvEnum
-	Database DatabaseConfig
+type Config struct {
+	App app
+	DB  database
 }
 
-type DatabaseConfig struct {
+type app struct {
+	Name    string
+	Version string
+}
+
+type DBEnum string
+type database struct {
 	Name     string
+	Type     DBEnum
 	Host     string
 	Port     int
-	User     string
+	Username string
 	Password string
 }
 
 const (
-	PROD EnvEnum = "PROD"
-	DEV  EnvEnum = "DEV"
-	TEST EnvEnum = "TEST"
+	POSTGRESQL DBEnum = "postgresql"
+	MYSQL      DBEnum = "mysql"
+	MONGODB    DBEnum = "mongodb"
 )
 
-var (
-	Config               = TConfig{}
-	requiredEnv          = []string{}
-	hasMissingEnv        = false
-	invalidNumericEnv    = []string{}
-	hasInvalidNumericEnv = false
-	invalidBoolEnv       = []string{}
-	hasInvalidBoolEnv    = false
-)
-
-func LoadConfig() {
-	if err := godotenv.Load(); err != nil {
-		logger.Panic("No .env file found")
-	}
-
-	Config = TConfig{
-		Env:      EnvEnum(loadString("Env")),
-		Database: loadDatabaseConfig(),
-	}
-
-	if hasMissingEnv {
-		logger.Panic("Missing environment variables: %v", strings.Join(requiredEnv, ", "))
-	}
-
-	if hasInvalidNumericEnv {
-		logger.Panic("Invalid numeric environment variables: %v", strings.Join(invalidNumericEnv, ", "))
-	}
-
-	if hasInvalidBoolEnv {
-		logger.Panic("Invalid boolean environment variables: %v", strings.Join(invalidBoolEnv, ", "))
-	}
-
-	logger.Info("Config loaded successfully")
+func init() {
+	viper.SetConfigName("config")
+	viper.AddConfigPath(".")
+	viper.SetConfigType("yml")
 }
 
-func loadDatabaseConfig() DatabaseConfig {
-	databaseConfig := DatabaseConfig{
-		Name:     loadString("DB_NAME"),
-		Host:     loadString("DB_HOST"),
-		Port:     loadInt("DB_PORT"),
-		User:     loadString("DB_USER"),
-		Password: loadString("DB_PASSWORD"),
+func Load() error {
+	if err := viper.ReadInConfig(); err != nil {
+		return fmt.Errorf("No config is setup please run `go-vault setup`")
 	}
-
-	return databaseConfig
+	setDefaults()
+	if err := validateConfig(); err != nil {
+		return err
+	}
+	return nil
 }
 
-func loadString(key string) string {
-	env := os.Getenv(key)
-	if env == "" {
-		requiredEnv = append(requiredEnv, key)
-		hasMissingEnv = true
+func Save(config *Config) error {
+	// App //
+	viper.Set("app.name", config.App.Name)
+	viper.Set("app.version", config.App.Version)
+	// DB //
+	viper.Set("db.name", config.DB.Name)
+	viper.Set("db.type", config.DB.Type)
+	viper.Set("db.host", config.DB.Host)
+	viper.Set("db.port", config.DB.Port)
+	viper.Set("db.username", config.DB.Username)
+	viper.Set("db.password", config.DB.Password)
+
+	if err := viper.WriteConfig(); err != nil {
+		return err
 	}
-	return env
+	return nil
 }
 
-func loadInt(key string) int {
-	env := loadString(key)
-	parsedEnv, err := utils.ParseInt(env)
-	if err != nil {
-		invalidNumericEnv = append(invalidNumericEnv, key)
-		hasInvalidNumericEnv = true
+func GetConfig() *Config {
+	return &Config{
+		App: app{
+			Name:    viper.GetString("app.name"),
+			Version: viper.GetString("app.version"),
+		},
+		DB: database{
+			Name:     viper.GetString("db.name"),
+			Type:     DBEnum(viper.GetString("db.type")),
+			Host:     viper.GetString("db.host"),
+			Port:     viper.GetInt("db.port"),
+			Username: viper.GetString("db.username"),
+			Password: viper.GetString("db.password"),
+		},
 	}
-	return parsedEnv
-}
-
-func loadBool(key string) bool {
-	env := loadString(key)
-	parsedEnv, err := utils.ParseBool(env)
-	if err != nil {
-		invalidBoolEnv = append(invalidBoolEnv, key)
-		hasInvalidBoolEnv = true
-	}
-	return parsedEnv
 }
