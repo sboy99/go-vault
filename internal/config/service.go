@@ -1,4 +1,4 @@
-package services
+package config
 
 import (
 	"github.com/sboy99/go-vault/config"

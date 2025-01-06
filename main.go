@@ -12,8 +12,10 @@ func main() {
 	// Logger
 	logger.Init(logger.DEBUG)
 
+	logger.Info("args %v", os.Args)
+
 	// User Config //
-	if len(os.Args) > 0 && os.Args[1] != "setup" {
+	if len(os.Args) > 1 && os.Args[1] != "setup" {
 		if err := config.Load(); err != nil {
 			logger.Error("%s", err.Error())
 			return
