@@ -3,9 +3,9 @@ package strategies
 type DatabaseEnum string
 
 const (
-	POSTGRES DatabaseEnum = "postgres"
-	MYSQL    DatabaseEnum = "mysql"
-	MONGO    DatabaseEnum = "mongo"
+	POSTGRES DatabaseEnum = "Postgres"
+	MYSQL    DatabaseEnum = "Mysql"
+	MONGO    DatabaseEnum = "Mongo"
 )
 
 type IDatabase interface {
