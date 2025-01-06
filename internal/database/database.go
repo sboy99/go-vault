@@ -1,12 +1,6 @@
-package strategies
+package database
 
-type DatabaseEnum string
-
-const (
-	POSTGRES DatabaseEnum = "Postgres"
-	MYSQL    DatabaseEnum = "Mysql"
-	MONGO    DatabaseEnum = "Mongo"
-)
+import "github.com/sboy99/go-vault/config"
 
 type IDatabase interface {
 	Connect(name string, host string, port int, username string, password string) error
@@ -17,20 +11,20 @@ type IDatabase interface {
 }
 
 type Database struct {
-	dbMap map[DatabaseEnum]IDatabase
+	dbMap map[config.DatabaseEnum]IDatabase
 }
 
 func NewDatabase() *Database {
 	return &Database{
-		dbMap: map[DatabaseEnum]IDatabase{
-			POSTGRES: NewPostgresDB(),
-			MYSQL:    nil,
-			MONGO:    nil,
+		dbMap: map[config.DatabaseEnum]IDatabase{
+			config.POSTGRESQL: NewPostgresDB(),
+			config.MYSQL:      nil,
+			config.MONGODB:    nil,
 		},
 	}
 }
 
-func (d *Database) Connect(dbType DatabaseEnum, name string, host string, port int, username string, password string) error {
+func (d *Database) Connect(dbType config.DatabaseEnum, name string, host string, port int, username string, password string) error {
 	db := d.getDatabase(dbType)
 	if err := db.Connect(name, host, port, username, password); err != nil {
 		return err
@@ -38,7 +32,7 @@ func (d *Database) Connect(dbType DatabaseEnum, name string, host string, port i
 	return nil
 }
 
-func (d *Database) Close(dbType DatabaseEnum) error {
+func (d *Database) Close(dbType config.DatabaseEnum) error {
 	db := d.getDatabase(dbType)
 	if err := db.Close(); err != nil {
 		return err
@@ -46,7 +40,7 @@ func (d *Database) Close(dbType DatabaseEnum) error {
 	return nil
 }
 
-func (d *Database) Ping(dbType DatabaseEnum) error {
+func (d *Database) Ping(dbType config.DatabaseEnum) error {
 	db := d.getDatabase(dbType)
 	if err := db.Ping(); err != nil {
 		return err
@@ -54,7 +48,7 @@ func (d *Database) Ping(dbType DatabaseEnum) error {
 	return nil
 }
 
-func (d *Database) Backup(dbType DatabaseEnum) ([]byte, error) {
+func (d *Database) Backup(dbType config.DatabaseEnum) ([]byte, error) {
 	db := d.getDatabase(dbType)
 	data, err := db.Backup()
 	if err != nil {
@@ -63,7 +57,7 @@ func (d *Database) Backup(dbType DatabaseEnum) ([]byte, error) {
 	return data, nil
 }
 
-func (d *Database) Restore(dbType DatabaseEnum, data []byte) error {
+func (d *Database) Restore(dbType config.DatabaseEnum, data []byte) error {
 	db := d.getDatabase(dbType)
 	if err := db.Restore(data); err != nil {
 		return err
@@ -71,6 +65,6 @@ func (d *Database) Restore(dbType DatabaseEnum, data []byte) error {
 	return nil
 }
 
-func (d *Database) getDatabase(dbType DatabaseEnum) IDatabase {
+func (d *Database) getDatabase(dbType config.DatabaseEnum) IDatabase {
 	return d.dbMap[dbType]
 }

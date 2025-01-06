@@ -1,4 +1,4 @@
-package strategies
+package storage
 
 import (
 	"os"

@@ -10,6 +10,9 @@ import (
 func setDefaults() {
 	viper.SetDefault("app.name", "go-vault")
 	viper.SetDefault("app.version", "0.0.1")
+
+	viper.SetDefault("storage.type", "file")
+	viper.SetDefault("storage.dest", "./generated")
 }
 
 func validateConfig() error {
@@ -21,6 +24,7 @@ func validateConfig() error {
 	if viper.GetString("app.version") == "" {
 		errorList = append(errorList, "Missing app version")
 	}
+
 	if viper.GetString("db.name") == "" {
 		errorList = append(errorList, "Missing db name")
 	}
@@ -35,6 +39,13 @@ func validateConfig() error {
 	}
 	if viper.GetString("db.password") == "" {
 		errorList = append(errorList, "Missing db password")
+	}
+
+	if viper.GetString("storage.type") == "" {
+		errorList = append(errorList, "Missing storage type")
+	}
+	if viper.GetString("storage.dest") == "" {
+		errorList = append(errorList, "Missing storage dest")
 	}
 
 	if len(errorList) > 0 {
