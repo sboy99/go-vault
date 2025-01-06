@@ -6,7 +6,13 @@ import (
 	"github.com/sboy99/go-vault/pkg/logger"
 )
 
-func SetupConfig() {
+type ConfigService struct{}
+
+func NewConfigService() *ConfigService {
+	return &ConfigService{}
+}
+
+func (c *ConfigService) SetupConfig() {
 	// Promt input //
 	dbType, err := ui.DisplaySelectDatabaseTypePrompt()
 	if err != nil {

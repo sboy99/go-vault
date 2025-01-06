@@ -21,7 +21,8 @@ var setupCmd = &cobra.Command{
 	Use:   "setup",
 	Short: "Setup config of your database.",
 	Run: func(cmd *cobra.Command, args []string) {
-		config.SetupConfig()
+		configService := config.NewConfigService()
+		configService.SetupConfig()
 	},
 }
 
