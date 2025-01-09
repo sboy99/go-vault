@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"github.com/sboy99/go-vault/internal/config"
+	"github.com/sboy99/go-vault/internal/database"
 	"github.com/spf13/cobra"
 )
 
@@ -10,6 +11,9 @@ var rootCmd = &cobra.Command{
 	Use:   "go-vault",
 	Short: "CLI tool for db backups and restores",
 	Long:  "Manage your database backups and restores with ease.",
+	Run: func(cmd *cobra.Command, args []string) {
+		cmd.Help()
+	},
 }
 
 // Execute runs the root command
@@ -30,7 +34,8 @@ var backupCmd = &cobra.Command{
 	Use:   "backup",
 	Short: "Create a backup of your database.",
 	Run: func(cmd *cobra.Command, args []string) {
-		// TODO: Do backup
+		dbService := database.NewDatabaseService()
+		dbService.Backup()
 	},
 }
 
