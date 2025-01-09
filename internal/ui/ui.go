@@ -93,3 +93,17 @@ func DisplayInputDatabasePasswordPrompt() (string, error) {
 	}
 	return result, nil
 }
+
+func DisplaySelectStorageTypePrompt() (config.StorageEnum, error) {
+	// Prompt for Storage selection //
+	prompt := promptui.Select{
+		Label: "Select Storage",
+		Items: []config.StorageEnum{config.LOCAL, config.CLOUD},
+	}
+	// Run the prompt //
+	_, result, err := prompt.Run()
+	if err != nil {
+		return "", err
+	}
+	return config.StorageEnum(result), nil
+}

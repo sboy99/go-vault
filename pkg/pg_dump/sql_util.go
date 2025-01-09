@@ -1,9 +1,12 @@
 package pgdump
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 func makeSqlComment(comment string) string {
-	return fmt.Sprintf("--\n-- %s\n--\n", comment)
+	return fmt.Sprintf("--\n-- %s\n--\n", strings.Replace(comment, "\n", "\n-- ", -1))
 }
 
 func getListSchemasQuery() string {

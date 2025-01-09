@@ -45,6 +45,12 @@ func (c *ConfigService) SetupConfig() {
 		return
 	}
 
+	storageType, err := ui.DisplaySelectStorageTypePrompt()
+	if err != nil {
+		logger.Error("Failed to display select storage prompt\nDetails: %v", err)
+		return
+	}
+
 	// Save config //
 	cfg := config.GetConfig()
 	cfg.DB.Type = dbType
@@ -53,6 +59,9 @@ func (c *ConfigService) SetupConfig() {
 	cfg.DB.Name = dbName
 	cfg.DB.Username = dbUser
 	cfg.DB.Password = dbPass
+
+	cfg.Storage.Type = storageType
+
 	if err = config.Save(cfg); err != nil {
 		logger.Error("Failed to save config\nDetails: %v", err)
 	}
