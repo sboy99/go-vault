@@ -107,3 +107,74 @@ func DisplaySelectStorageTypePrompt() (config.StorageEnum, error) {
 	}
 	return config.StorageEnum(result), nil
 }
+
+func DisplaySelectCloudTypePrompt() (config.CloudEnum, error) {
+	// Prompt for Cloud selection //
+	prompt := promptui.Select{
+		Label: "Select Cloud",
+		Items: []config.CloudEnum{config.AWS, config.GCP},
+	}
+	// Run the prompt //
+	_, result, err := prompt.Run()
+	if err != nil {
+		return "", err
+	}
+	return config.CloudEnum(result), nil
+}
+
+func DisplaySelectAWSRegionPrompt() (string, error) {
+	// Prompt for AWS region //
+	prompt := promptui.Select{
+		Label: "Enter AWS Region",
+		Items: []string{
+			"us-east-1",      // US East (N. Virginia)
+			"us-east-2",      // US East (Ohio)
+			"us-west-1",      // US West (N. California)
+			"us-west-2",      // US West (Oregon)
+			"ca-central-1",   // Canada (Central)
+			"sa-east-1",      // South America (São Paulo)
+			"eu-west-1",      // Europe (Ireland)
+			"eu-west-2",      // Europe (London)
+			"eu-west-3",      // Europe (Paris)
+			"eu-central-1",   // Europe (Frankfurt)
+			"eu-central-2",   // Europe (Zurich)
+			"eu-north-1",     // Europe (Stockholm)
+			"eu-south-1",     // Europe (Milan)
+			"eu-south-2",     // Europe (Spain)
+			"me-south-1",     // Middle East (Bahrain)
+			"me-central-1",   // Middle East (UAE)
+			"il-central-1",   // Middle East (Israel)
+			"af-south-1",     // Africa (Cape Town)
+			"ap-southeast-1", // Asia Pacific (Singapore)
+			"ap-southeast-2", // Asia Pacific (Sydney)
+			"ap-southeast-3", // Asia Pacific (Jakarta)
+			"ap-southeast-4", // Asia Pacific (Bangkok)
+			"ap-northeast-1", // Asia Pacific (Tokyo)
+			"ap-northeast-2", // Asia Pacific (Seoul)
+			"ap-northeast-3", // Asia Pacific (Osaka)
+			"ap-south-1",     // Asia Pacific (Mumbai)
+			"ap-south-2",     // Asia Pacific (Hyderabad)
+			"ap-east-1",      // Asia Pacific (Hong Kong)
+			"ap-southeast-5", // Asia Pacific (Melbourne)
+		},
+	}
+	// Run the prompt //
+	_, result, err := prompt.Run()
+	if err != nil {
+		return "", err
+	}
+	return result, nil
+}
+
+func DisplayInputAWSBucketNamePrompt() (string, error) {
+	// Prompt for AWS bucket name //
+	prompt := promptui.Prompt{
+		Label: "Enter AWS Bucket Name",
+	}
+	// Run the prompt //
+	result, err := prompt.Run()
+	if err != nil {
+		return "", err
+	}
+	return result, nil
+}

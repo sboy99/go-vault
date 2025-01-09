@@ -37,6 +37,12 @@ type storage struct {
 type CloudEnum string
 type CloudStorage struct {
 	Type CloudEnum
+	AWS  AWSCloudStorage
+}
+
+type AWSCloudStorage struct {
+	Region     string
+	BucketName string
 }
 
 const (
@@ -86,6 +92,11 @@ func Save(config *Config) error {
 	// Storage //
 	viper.Set("storage.type", config.Storage.Type)
 	viper.Set("storage.dest", config.Storage.Dest)
+	// Cloud Storage //
+	viper.Set("storage.cloud.type", config.Storage.Cloud.Type)
+	// AWS Cloud Storage //
+	viper.Set("storage.cloud.aws.region", config.Storage.Cloud.AWS.Region)
+	viper.Set("storage.cloud.aws.bucket_name", config.Storage.Cloud.AWS.BucketName)
 
 	if err := viper.WriteConfig(); err != nil {
 		return err
