@@ -29,8 +29,14 @@ type database struct {
 
 type StorageEnum string
 type storage struct {
-	Type StorageEnum
-	Dest string
+	Type  StorageEnum
+	Dest  string //TODO: Move Dest to LocalStorage struct
+	Cloud CloudStorage
+}
+
+type CloudEnum string
+type CloudStorage struct {
+	Type CloudEnum
 }
 
 const (
@@ -42,6 +48,11 @@ const (
 const (
 	LOCAL StorageEnum = "local"
 	CLOUD StorageEnum = "cloud"
+)
+
+const (
+	GCP CloudEnum = "gcp"
+	AWS CloudEnum = "aws"
 )
 
 func init() {

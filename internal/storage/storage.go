@@ -16,8 +16,8 @@ type Storage struct {
 func NewStorage() *Storage {
 	return &Storage{
 		storageMap: map[config.StorageEnum]IStorage{
-			config.LOCAL: NewLocalStorage(config.GetConfig().Storage.Dest),
-			config.CLOUD: nil,
+			config.LOCAL: NewLocalStorage(),
+			config.CLOUD: NewCloudStorage(),
 		},
 	}
 }
