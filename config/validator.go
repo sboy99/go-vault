@@ -11,7 +11,7 @@ func setDefaults() {
 	viper.SetDefault("app.name", "go-vault")
 	viper.SetDefault("app.version", "0.0.1")
 
-	viper.SetDefault("storage.type", "file")
+	viper.SetDefault("storage.type", "local")
 	viper.SetDefault("storage.dest", "./generated")
 }
 

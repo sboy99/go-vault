@@ -40,7 +40,7 @@ const (
 )
 
 const (
-	FILE  StorageEnum = "file"
+	LOCAL StorageEnum = "local"
 	CLOUD StorageEnum = "cloud"
 )
 
@@ -72,6 +72,9 @@ func Save(config *Config) error {
 	viper.Set("db.port", config.DB.Port)
 	viper.Set("db.username", config.DB.Username)
 	viper.Set("db.password", config.DB.Password)
+	// Storage //
+	viper.Set("storage.type", config.Storage.Type)
+	viper.Set("storage.dest", config.Storage.Dest)
 
 	if err := viper.WriteConfig(); err != nil {
 		return err
