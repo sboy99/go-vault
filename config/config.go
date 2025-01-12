@@ -55,13 +55,13 @@ const (
 )
 
 const (
-	LOCAL StorageEnum = "local"
-	CLOUD StorageEnum = "cloud"
+	LOCAL StorageEnum = "LOCAL"
+	CLOUD StorageEnum = "CLOUD"
 )
 
 const (
-	GCP CloudEnum = "gcp"
-	AWS CloudEnum = "aws"
+	GCP CloudEnum = "GCP"
+	AWS CloudEnum = "AWS"
 )
 
 func init() {
