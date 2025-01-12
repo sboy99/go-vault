@@ -178,3 +178,44 @@ func DisplayInputAWSBucketNamePrompt() (string, error) {
 	}
 	return result, nil
 }
+
+func DisplayInputAWSAccessKeyIdPrompt() (string, error) {
+	// Prompt for AWS access key id //
+	prompt := promptui.Prompt{
+		Label: "Enter AWS Access Key ID",
+	}
+	// Run the prompt //
+	result, err := prompt.Run()
+	if err != nil {
+		return "", err
+	}
+	return result, nil
+}
+
+func DisplayInputAWSAccessKeySecretPrompt() (string, error) {
+	// Prompt for AWS access key secret //
+	prompt := promptui.Prompt{
+		Label: "Enter AWS Access Key Secret",
+		Mask:  '*',
+	}
+	// Run the prompt //
+	result, err := prompt.Run()
+	if err != nil {
+		return "", err
+	}
+	return result, nil
+}
+
+func DisplayInputAWSEndpointPrompt() (string, error) {
+	// Prompt for AWS endpoint //
+	prompt := promptui.Prompt{
+		Label:   "Enter AWS Endpoint",
+		Default: "default",
+	}
+	// Run the prompt //
+	result, err := prompt.Run()
+	if err != nil {
+		return "", err
+	}
+	return result, nil
+}

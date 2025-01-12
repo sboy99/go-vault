@@ -43,3 +43,6 @@ generated/
 # Config
 config.json
 config.yml
+
+# Secrets
+.env

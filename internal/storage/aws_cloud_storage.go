@@ -13,25 +13,34 @@ import (
 )
 
 type AWSCloudStorage struct {
-	Region     string
-	BucketName string
+	Region          string
+	BucketName      string
+	AccessKeyId     string
+	AccessKeySecret string
+	Endpoint        string
+	Token           string
 }
 
 func NewAWSCloudStorage() *AWSCloudStorage {
 	cfg := config.GetConfig()
 	return &AWSCloudStorage{
-		Region:     cfg.Storage.Cloud.AWS.Region,
-		BucketName: cfg.Storage.Cloud.AWS.BucketName,
+		Region:          cfg.Storage.Cloud.AWS.Region,
+		BucketName:      cfg.Storage.Cloud.AWS.BucketName,
+		AccessKeyId:     cfg.Storage.Cloud.AWS.AccessKeyId,
+		AccessKeySecret: cfg.Storage.Cloud.AWS.AccessKeySecret,
+		Endpoint:        cfg.Storage.Cloud.AWS.Endpoint,
+		Token:           "", // TODO: Add token but not required for now
 	}
 }
 
 func (a *AWSCloudStorage) Upload(filename string, data []byte) error {
-	svc, err := a.getSvc()
+	s3, err := a.getS3()
 	if err != nil {
 		return err
 	}
 	key := a.buildKey(filename)
-	if _, err = svc.PutObject(a.createPutObjectInput(key, data)); err != nil {
+	s3Object := a.createPutObjectInput(key, data)
+	if _, err = s3.PutObject(s3Object); err != nil {
 		return err
 	}
 	return nil
@@ -45,15 +54,28 @@ func (a *AWSCloudStorage) Delete(filename string) error {
 	return fmt.Errorf("Not Impl")
 }
 
-func (a *AWSCloudStorage) getSvc() (*s3.S3, error) {
-	sess, err := session.NewSession(&aws.Config{
-		Region:      aws.String(a.Region),
-		Credentials: &credentials.Credentials{},
-	})
+func (a *AWSCloudStorage) getS3() (*s3.S3, error) {
+	sess, err := a.getSession()
 	if err != nil {
 		return nil, err
 	}
 	return s3.New(sess), nil
+}
+
+func (a *AWSCloudStorage) getSession() (*session.Session, error) {
+	creds := credentials.NewStaticCredentials(a.AccessKeyId, a.AccessKeySecret, a.Token)
+	if a.Endpoint == "default" {
+		return session.NewSession(&aws.Config{
+			Region:      aws.String(a.Region),
+			Credentials: creds,
+		})
+	}
+	return session.NewSession(&aws.Config{
+		Region:           aws.String(a.Region),
+		Endpoint:         aws.String(a.Endpoint),
+		S3ForcePathStyle: aws.Bool(true),
+		Credentials:      creds,
+	})
 }
 
 func (a *AWSCloudStorage) createPutObjectInput(key string, data []byte) *s3.PutObjectInput {
@@ -65,5 +87,5 @@ func (a *AWSCloudStorage) createPutObjectInput(key string, data []byte) *s3.PutO
 }
 
 func (a *AWSCloudStorage) buildKey(filename string) string {
-	return filename + "_" + utils.GetUnixTimeStamp()
+	return utils.GetUnixTimeStamp() + "_" + filename
 }

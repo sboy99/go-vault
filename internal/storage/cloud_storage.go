@@ -9,15 +9,15 @@ type ICloudStorage interface {
 }
 
 type CloudStorage struct {
-	Type       config.CloudEnum
-	storageMap map[config.CloudEnum]ICloudStorage
+	Type            config.CloudEnum
+	cloudStorageMap map[config.CloudEnum]ICloudStorage
 }
 
 func NewCloudStorage() *CloudStorage {
 	cfg := config.GetConfig()
 	return &CloudStorage{
 		Type: cfg.Storage.Cloud.Type,
-		storageMap: map[config.CloudEnum]ICloudStorage{
+		cloudStorageMap: map[config.CloudEnum]ICloudStorage{
 			config.AWS: NewAWSCloudStorage(),
 			config.GCP: nil,
 		},
@@ -37,5 +37,5 @@ func (c *CloudStorage) Delete(filename string) error {
 }
 
 func (c *CloudStorage) getCloudStorage() ICloudStorage {
-	return c.storageMap[c.Type]
+	return c.cloudStorageMap[c.Type]
 }

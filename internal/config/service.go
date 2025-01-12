@@ -89,6 +89,27 @@ func (c *ConfigService) SetupConfig() {
 				return
 			}
 			cfg.Storage.Cloud.AWS.BucketName = awsBucketName
+
+			awsAccessKeyId, err := ui.DisplayInputAWSAccessKeyIdPrompt()
+			if err != nil {
+				logger.Error("Failed to display input aws access key id prompt\nDetails: %v", err)
+				return
+			}
+			cfg.Storage.Cloud.AWS.AccessKeyId = awsAccessKeyId
+
+			awsAccessKeySecret, err := ui.DisplayInputAWSAccessKeySecretPrompt()
+			if err != nil {
+				logger.Error("Failed to display input aws access key secret prompt\nDetails: %v", err)
+				return
+			}
+			cfg.Storage.Cloud.AWS.AccessKeySecret = awsAccessKeySecret
+
+			awsEndpoint, err := ui.DisplayInputAWSEndpointPrompt()
+			if err != nil {
+				logger.Error("Failed to display input aws endpoint prompt\nDetails: %v", err)
+				return
+			}
+			cfg.Storage.Cloud.AWS.Endpoint = awsEndpoint
 		}
 	}
 
