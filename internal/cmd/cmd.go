@@ -17,11 +17,6 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-// Execute runs the root command
-func Execute() error {
-	return rootCmd.Execute()
-}
-
 var setupCmd = &cobra.Command{
 	Use:   "setup",
 	Short: "Setup config of your database.",
@@ -44,4 +39,9 @@ var backupCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(setupCmd)
 	rootCmd.AddCommand(backupCmd)
+}
+
+// Execute runs the root command
+func Execute() error {
+	return rootCmd.Execute()
 }
