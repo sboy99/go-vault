@@ -8,11 +8,18 @@ import (
 )
 
 func setDefaults() {
+	// App
 	viper.SetDefault("app.name", "go-vault")
 	viper.SetDefault("app.version", "0.0.1")
 
+	// Storage
 	viper.SetDefault("storage.type", "local")
 	viper.SetDefault("storage.dest", "./generated")
+
+	// Storage Cloud
+	// AWS
+	viper.SetDefault("storage.cloud.aws.endpoint", "default")
+
 }
 
 func validateConfig() error {

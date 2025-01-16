@@ -2,14 +2,17 @@ package storage
 
 import (
 	"os"
+
+	"github.com/sboy99/go-vault/config"
 )
 
 type LocalStorage struct {
 	BasePath string
 }
 
-func NewLocalStorage(basePath string) *LocalStorage {
-	return &LocalStorage{BasePath: basePath}
+func NewLocalStorage() *LocalStorage {
+	cfg := config.GetConfig()
+	return &LocalStorage{BasePath: cfg.Storage.Dest}
 }
 
 func (ls *LocalStorage) Save(filename string, data []byte) error {

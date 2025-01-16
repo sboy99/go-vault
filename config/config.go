@@ -29,8 +29,23 @@ type database struct {
 
 type StorageEnum string
 type storage struct {
-	Type StorageEnum
-	Dest string
+	Type  StorageEnum
+	Dest  string //TODO: Move Dest to LocalStorage struct
+	Cloud cloudStorage
+}
+
+type CloudEnum string
+type cloudStorage struct {
+	Type CloudEnum
+	AWS  _AWSCloudStorage
+}
+
+type _AWSCloudStorage struct {
+	Region          string
+	BucketName      string
+	AccessKeyId     string
+	AccessKeySecret string
+	Endpoint        string
 }
 
 const (
@@ -40,8 +55,13 @@ const (
 )
 
 const (
-	LOCAL StorageEnum = "local"
-	CLOUD StorageEnum = "cloud"
+	LOCAL StorageEnum = "LOCAL"
+	CLOUD StorageEnum = "CLOUD"
+)
+
+const (
+	GCP CloudEnum = "GCP"
+	AWS CloudEnum = "AWS"
 )
 
 func init() {
@@ -75,6 +95,14 @@ func Save(config *Config) error {
 	// Storage //
 	viper.Set("storage.type", config.Storage.Type)
 	viper.Set("storage.dest", config.Storage.Dest)
+	// Cloud Storage //
+	viper.Set("storage.cloud.type", config.Storage.Cloud.Type)
+	// AWS Cloud Storage //
+	viper.Set("storage.cloud.aws.region", config.Storage.Cloud.AWS.Region)
+	viper.Set("storage.cloud.aws.bucket_name", config.Storage.Cloud.AWS.BucketName)
+	viper.Set("storage.cloud.aws.access_key_id", config.Storage.Cloud.AWS.AccessKeyId)
+	viper.Set("storage.cloud.aws.access_key_secret", config.Storage.Cloud.AWS.AccessKeySecret)
+	viper.Set("storage.cloud.aws.endpoint", config.Storage.Cloud.AWS.Endpoint)
 
 	if err := viper.WriteConfig(); err != nil {
 		return err
@@ -99,6 +127,16 @@ func GetConfig() *Config {
 		Storage: storage{
 			Type: StorageEnum(viper.GetString("storage.type")),
 			Dest: viper.GetString("storage.dest"),
+			Cloud: cloudStorage{
+				Type: CloudEnum(viper.GetString("storage.cloud.type")),
+				AWS: _AWSCloudStorage{
+					Region:          viper.GetString("storage.cloud.aws.region"),
+					BucketName:      viper.GetString("storage.cloud.aws.bucket_name"),
+					AccessKeyId:     viper.GetString("storage.cloud.aws.access_key_id"),
+					AccessKeySecret: viper.GetString("storage.cloud.aws.access_key_secret"),
+					Endpoint:        viper.GetString("storage.cloud.aws.endpoint"),
+				},
+			},
 		},
 	}
 }
