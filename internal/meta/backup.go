@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/sboy99/go-vault/config"
+	"github.com/sboy99/go-vault/pkg/boltdb"
 	"github.com/sboy99/go-vault/pkg/utils"
 )
 
@@ -30,11 +31,11 @@ func (b *BackupMeta) Save() error {
 	if err != nil {
 		return err
 	}
-	return saveMetaData(_BOLT_BACKUP_BUCKET, b.ID, backupMetaJSON)
+	return boltdb.Save(_BACKUP_META, b.ID, backupMetaJSON)
 }
 
 func GetBackupMeta(id string) (*BackupMeta, error) {
-	backupMetaJSON, err := getMetaData(_BOLT_BACKUP_BUCKET, id)
+	backupMetaJSON, err := boltdb.Get(_BACKUP_META, id)
 	if err != nil {
 		return nil, err
 	}
@@ -45,8 +46,8 @@ func GetBackupMeta(id string) (*BackupMeta, error) {
 	return &backupMeta, nil
 }
 
-func ListBackupMeta(size int) ([]*BackupMeta, error) {
-	backupMetaJSONs, err := listMetaData(_BOLT_BACKUP_BUCKET, size)
+func ListBackupMeta(size, offset int) ([]*BackupMeta, error) {
+	backupMetaJSONs, err := boltdb.List(_BACKUP_META, size, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -59,4 +60,8 @@ func ListBackupMeta(size int) ([]*BackupMeta, error) {
 		backupMetas = append(backupMetas, &backupMeta)
 	}
 	return backupMetas, nil
+}
+
+func DeleteBackupMeta(id string) error {
+	return boltdb.Delete(_BACKUP_META, id)
 }

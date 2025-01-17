@@ -10,7 +10,9 @@ import (
 )
 
 func cleanup() {
-	meta.Destroy()
+	if err := meta.Cleanup(); err != nil {
+		logger.Error("%s", err.Error())
+	}
 }
 
 func main() {
