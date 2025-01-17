@@ -16,13 +16,13 @@ func cleanup() {
 }
 
 func main() {
-	// Cleanup
+	// Cleanup //
 	defer cleanup()
 
-	// Logger
+	// Logger //
 	logger.Init(logger.DEBUG)
 
-	// MetaData
+	// MetaData //
 	if err := meta.Init(); err != nil {
 		logger.Error("%s", err.Error())
 		return

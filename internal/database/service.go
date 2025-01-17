@@ -2,8 +2,10 @@ package database
 
 import (
 	"github.com/sboy99/go-vault/config"
+	"github.com/sboy99/go-vault/internal/meta"
 	"github.com/sboy99/go-vault/internal/storage"
 	"github.com/sboy99/go-vault/pkg/logger"
+	"github.com/sboy99/go-vault/pkg/utils"
 )
 
 type DatabaseService struct {
@@ -52,9 +54,21 @@ func (d *DatabaseService) Backup() {
 	logger.Info("Backed up DB")
 
 	logger.Info("Saving backup...")
-	if err := d.storage.Save(cfg.Storage.Type, "backup.sql", data); err != nil {
+	backupFilename := buidlFileName(cfg.DB.Name)
+	if err := d.storage.Save(cfg.Storage.Type, backupFilename, data); err != nil {
 		logger.Error("Failed to save backup\nDetails: %v", err)
 		return
 	}
 	logger.Info("Saved backup")
+
+	backupMeta := meta.NewBackupMeta(backupFilename, cfg.DB.Type, cfg.Storage.Type)
+	if err := backupMeta.Save(); err != nil {
+		logger.Error("Failed to save backup meta\nDetails: %v", err)
+		return
+	}
+	logger.Info("Backup successful")
+}
+
+func buidlFileName(dbName string) string {
+	return utils.GetUnixTimeStamp() + "_" + dbName + "_" + "backup" + ".sql"
 }
