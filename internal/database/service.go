@@ -20,7 +20,7 @@ func NewDatabaseService() *DatabaseService {
 	}
 }
 
-func (d *DatabaseService) Backup() {
+func (d *DatabaseService) CreateBackup() {
 	cfg := config.GetConfig()
 
 	logger.Info("Connecting to DB...")
@@ -67,6 +67,19 @@ func (d *DatabaseService) Backup() {
 		return
 	}
 	logger.Info("Backup successful")
+}
+
+func (d *DatabaseService) ListBackups() {
+	maxCount, offset := 15, 0
+	backupMetaList, err := meta.ListBackupMeta(maxCount, offset)
+	if err != nil {
+		logger.Error("Failed to list backups\nDetails: %v", err)
+		return
+	}
+	logger.Info("List of backups:")
+	for _, backupMeta := range backupMetaList {
+		logger.Debug("Backup: %v", backupMeta)
+	}
 }
 
 func buidlFileName(dbName string) string {
