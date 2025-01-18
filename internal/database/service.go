@@ -2,8 +2,11 @@ package database
 
 import (
 	"github.com/sboy99/go-vault/config"
+	"github.com/sboy99/go-vault/internal/meta"
 	"github.com/sboy99/go-vault/internal/storage"
+	"github.com/sboy99/go-vault/internal/ui"
 	"github.com/sboy99/go-vault/pkg/logger"
+	"github.com/sboy99/go-vault/pkg/utils"
 )
 
 type DatabaseService struct {
@@ -18,7 +21,7 @@ func NewDatabaseService() *DatabaseService {
 	}
 }
 
-func (d *DatabaseService) Backup() {
+func (d *DatabaseService) CreateBackup() {
 	cfg := config.GetConfig()
 
 	logger.Info("Connecting to DB...")
@@ -52,9 +55,43 @@ func (d *DatabaseService) Backup() {
 	logger.Info("Backed up DB")
 
 	logger.Info("Saving backup...")
-	if err := d.storage.Save(cfg.Storage.Type, "backup.sql", data); err != nil {
+	backupFilename := buidlFileName(cfg.DB.Name)
+	if err := d.storage.Save(cfg.Storage.Type, backupFilename, data); err != nil {
 		logger.Error("Failed to save backup\nDetails: %v", err)
 		return
 	}
 	logger.Info("Saved backup")
+
+	backupMeta := meta.NewBackupMeta(backupFilename, cfg.DB.Type, cfg.Storage.Type)
+	if err := backupMeta.Save(); err != nil {
+		logger.Error("Failed to save backup meta\nDetails: %v", err)
+		return
+	}
+	logger.Info("Backup successful")
+}
+
+func (d *DatabaseService) ListBackups() {
+	maxCount, offset := 15, 0
+	backupMetaList, err := meta.ListBackupMeta(maxCount, offset)
+	if err != nil {
+		logger.Error("Failed to list backups\nDetails: %v", err)
+		return
+	}
+	headers, err := utils.GetStructFields(meta.BackupMeta{})
+	if err != nil {
+		logger.Error("Failed to list backups\nDetails: %v", err)
+		return
+	}
+	backupListInterface := make([]interface{}, len(backupMetaList))
+	for i, v := range backupMetaList {
+		backupListInterface[i] = *v
+	}
+	if err := ui.RenderTable(headers, backupListInterface); err != nil {
+		logger.Error("Failed to list backups\nDetails: %v", err)
+		return
+	}
+}
+
+func buidlFileName(dbName string) string {
+	return utils.GetUnixTimeStamp() + "_" + dbName + "_" + "backup" + ".sql"
 }

@@ -3,7 +3,6 @@ package cmd
 import (
 	"github.com/sboy99/go-vault/internal/config"
 	"github.com/sboy99/go-vault/internal/database"
-	"github.com/sboy99/go-vault/pkg/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -28,17 +27,35 @@ var setupCmd = &cobra.Command{
 
 var backupCmd = &cobra.Command{
 	Use:   "backup",
+	Short: "Manage backups of your database.",
+}
+
+var createBackupCmd = &cobra.Command{
+	Use:   "create",
 	Short: "Create a backup of your database.",
 	Run: func(cmd *cobra.Command, args []string) {
 		dbService := database.NewDatabaseService()
-		logger.Info("%v", dbService)
-		dbService.Backup()
+		dbService.CreateBackup()
+	},
+}
+
+var listBackupCmd = &cobra.Command{
+	Use: "list",
+	Aliases: []string{
+		"ls",
+	},
+	Short: "List all backups of your database.",
+	Run: func(cmd *cobra.Command, args []string) {
+		dbService := database.NewDatabaseService()
+		dbService.ListBackups()
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(setupCmd)
 	rootCmd.AddCommand(backupCmd)
+	backupCmd.AddCommand(createBackupCmd)
+	backupCmd.AddCommand(listBackupCmd)
 }
 
 // Execute runs the root command

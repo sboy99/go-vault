@@ -9,7 +9,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/sboy99/go-vault/config"
-	"github.com/sboy99/go-vault/pkg/utils"
 )
 
 type AWSCloudStorage struct {
@@ -38,8 +37,7 @@ func (a *AWSCloudStorage) Upload(filename string, data []byte) error {
 	if err != nil {
 		return err
 	}
-	key := a.buildKey(filename)
-	s3Object := a.createPutObjectInput(key, data)
+	s3Object := a.createPutObjectInput(filename, data)
 	if _, err = s3.PutObject(s3Object); err != nil {
 		return err
 	}
@@ -84,8 +82,4 @@ func (a *AWSCloudStorage) createPutObjectInput(key string, data []byte) *s3.PutO
 		Bucket: aws.String(a.BucketName),
 		Body:   bytes.NewReader(data),
 	}
-}
-
-func (a *AWSCloudStorage) buildKey(filename string) string {
-	return utils.GetUnixTimeStamp() + "_" + filename
 }

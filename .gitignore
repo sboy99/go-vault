@@ -39,6 +39,7 @@ Godeps/
 
 # Output
 generated/
+backups/
 
 # Config
 config.json
@@ -46,3 +47,6 @@ config.yml
 
 # Secrets
 .env
+
+# Binary
+go-vault*
