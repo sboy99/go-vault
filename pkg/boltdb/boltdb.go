@@ -1,8 +1,6 @@
 package boltdb
 
 import (
-	"github.com/sboy99/go-vault/pkg/logger"
-
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -19,7 +17,6 @@ func Connect() error {
 		return err
 	}
 	db = conn
-	logger.Info("Connected to bolt db")
 	return nil
 }
 

@@ -55,6 +55,7 @@ func init() {
 	rootCmd.AddCommand(setupCmd)
 	rootCmd.AddCommand(backupCmd)
 	backupCmd.AddCommand(createBackupCmd)
+	backupCmd.AddCommand(listBackupCmd)
 }
 
 // Execute runs the root command

@@ -9,7 +9,7 @@ import (
 )
 
 type BackupMeta struct {
-	ID           string              `json:"id"`
+	BackupId     string              `json:"id"`
 	Name         string              `json:"name"`
 	DatabaseType config.DatabaseEnum `json:"database_type"`
 	StorageType  config.StorageEnum  `json:"storage_type"`
@@ -18,7 +18,7 @@ type BackupMeta struct {
 
 func NewBackupMeta(name string, dbType config.DatabaseEnum, storageType config.StorageEnum) *BackupMeta {
 	return &BackupMeta{
-		ID:           utils.GenerateUUID(),
+		BackupId:     utils.GenerateUID(),
 		CreatedAt:    utils.GetNow(),
 		Name:         name,
 		DatabaseType: dbType,
@@ -31,7 +31,7 @@ func (b *BackupMeta) Save() error {
 	if err != nil {
 		return err
 	}
-	return boltdb.Save(_BACKUP_META, b.ID, backupMetaJSON)
+	return boltdb.Save(_BACKUP_META, b.BackupId, backupMetaJSON)
 }
 
 func GetBackupMeta(id string) (*BackupMeta, error) {

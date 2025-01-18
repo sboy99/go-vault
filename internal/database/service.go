@@ -4,6 +4,7 @@ import (
 	"github.com/sboy99/go-vault/config"
 	"github.com/sboy99/go-vault/internal/meta"
 	"github.com/sboy99/go-vault/internal/storage"
+	"github.com/sboy99/go-vault/internal/ui"
 	"github.com/sboy99/go-vault/pkg/logger"
 	"github.com/sboy99/go-vault/pkg/utils"
 )
@@ -76,9 +77,18 @@ func (d *DatabaseService) ListBackups() {
 		logger.Error("Failed to list backups\nDetails: %v", err)
 		return
 	}
-	logger.Info("List of backups:")
-	for _, backupMeta := range backupMetaList {
-		logger.Debug("Backup: %v", backupMeta)
+	headers, err := utils.GetStructFields(meta.BackupMeta{})
+	if err != nil {
+		logger.Error("Failed to list backups\nDetails: %v", err)
+		return
+	}
+	backupListInterface := make([]interface{}, len(backupMetaList))
+	for i, v := range backupMetaList {
+		backupListInterface[i] = *v
+	}
+	if err := ui.RenderTable(headers, backupListInterface); err != nil {
+		logger.Error("Failed to list backups\nDetails: %v", err)
+		return
 	}
 }
 
