@@ -51,11 +51,21 @@ var listBackupCmd = &cobra.Command{
 	},
 }
 
+var restoreBackupCmd = &cobra.Command{
+	Use:   "restore",
+	Short: "Restore a backup of your database.",
+	Run: func(cmd *cobra.Command, args []string) {
+		dbService := database.NewDatabaseService()
+		dbService.RestoreBackup("1737487435_postgres_backup.sql")
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(setupCmd)
 	rootCmd.AddCommand(backupCmd)
 	backupCmd.AddCommand(createBackupCmd)
 	backupCmd.AddCommand(listBackupCmd)
+	backupCmd.AddCommand(restoreBackupCmd)
 }
 
 // Execute runs the root command
