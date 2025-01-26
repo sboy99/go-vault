@@ -28,6 +28,9 @@ var setupCmd = &cobra.Command{
 var backupCmd = &cobra.Command{
 	Use:   "backup",
 	Short: "Manage backups of your database.",
+	Run: func(cmd *cobra.Command, args []string) {
+		cmd.Help()
+	},
 }
 
 var createBackupCmd = &cobra.Command{

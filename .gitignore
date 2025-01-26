@@ -49,4 +49,4 @@ config.yml
 .env
 
 # Binary
-go-vault*
+go-vault.db
