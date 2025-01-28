@@ -68,23 +68,22 @@ completions:
         */fish) \
             echo "Detected fish shell"; \
             $(BINARY_PATH)/$(BINARY_NAME) completion fish > $(COMPLETIONS_PATH)/$(BINARY_NAME).fish; \
+            echo "Generated Fish completions"; \
+            echo "source $(COMPLETIONS_PATH)/$(BINARY_NAME).fish" >> ~/.config/fish/config.fish; \
+            echo "Sourced completions, Reload the shell"; \
         ;; \
         */pwsh) \
             echo "Detected powershell shell";\
             $(BINARY_PATH)/$(BINARY_NAME) completion powershell > $(COMPLETIONS_PATH)/$(BINARY_NAME).ps1; \
+            echo "Generated Powershell completions"; \
+            echo "source $(COMPLETIONS_PATH)/$(BINARY_NAME).ps1" >> ~/.config/powershell/Microsoft.PowerShell_profile.ps1; \
+            echo "Sourced completions, Reload the shell"; \
         ;; \
         *) \
             echo "Unsupported shell"; \
             exit 1; \
         ;; \
     esac
-
-source:
-	@echo "Sourcing shell completions..."
-	@echo "source $(COMPLETIONS_PATH)/$(BINARY_NAME).bash" >> ~/.bashrc
-	@echo "source $(COMPLETIONS_PATH)/_$(BINARY_NAME)" >> ~/.zshrc
-	@echo "source $(COMPLETIONS_PATH)/$(BINARY_NAME).fish" >> ~/.config/fish/config.fish
-	@echo "source $(COMPLETIONS_PATH)/$(BINARY_NAME).ps1" >> ~/.config/powershell/Microsoft.PowerShell_profile.ps1
 
 # Ensure directories are created
 .PHONY: all deps build clean test dev install completions

@@ -50,3 +50,6 @@ config.yml
 
 # Binary
 go-vault.db
+
+# Shell Completions
+completions

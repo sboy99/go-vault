@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"github.com/sboy99/go-vault/internal/config"
-	"github.com/sboy99/go-vault/internal/database"
 	"github.com/spf13/cobra"
 )
 
@@ -11,56 +9,38 @@ var rootCmd = &cobra.Command{
 	Use:   "go-vault",
 	Short: "CLI tool for db backups and restores",
 	Long:  "Manage your database backups and restores with ease.",
-	Run: func(cmd *cobra.Command, args []string) {
-		cmd.Help()
-	},
+	Run:   rootCmdHandler,
 }
 
 var setupCmd = &cobra.Command{
 	Use:   "setup",
 	Short: "Setup config of your database.",
-	Run: func(cmd *cobra.Command, args []string) {
-		configService := config.NewConfigService()
-		configService.SetupConfig()
-	},
+	Run:   setupCmdHandler,
 }
 
 var backupCmd = &cobra.Command{
 	Use:   "backup",
 	Short: "Manage backups of your database.",
-	Run: func(cmd *cobra.Command, args []string) {
-		cmd.Help()
-	},
+	Run:   backupCmdHandler,
 }
 
 var createBackupCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Create a backup of your database.",
-	Run: func(cmd *cobra.Command, args []string) {
-		dbService := database.NewDatabaseService()
-		dbService.CreateBackup()
-	},
+	Run:   createBackupCmdHandler,
 }
 
 var listBackupCmd = &cobra.Command{
-	Use: "list",
-	Aliases: []string{
-		"ls",
-	},
+	Use:   "list",
 	Short: "List all backups of your database.",
-	Run: func(cmd *cobra.Command, args []string) {
-		dbService := database.NewDatabaseService()
-		dbService.ListBackups()
-	},
+	Run:   listBackupCmdHandler,
 }
 
 var restoreBackupCmd = &cobra.Command{
-	Use:   "restore",
-	Short: "Restore a backup of your database.",
-	Run: func(cmd *cobra.Command, args []string) {
-		dbService := database.NewDatabaseService()
-		dbService.RestoreBackup("1737487435_postgres_backup.sql")
-	},
+	Use:               "restore [backup_name]",
+	Short:             "Restore a backup of your database.",
+	ValidArgsFunction: restoreBackupValidArgs,
+	Run:               restoreBackupCmdHandler,
 }
 
 func init() {
