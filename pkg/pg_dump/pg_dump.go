@@ -233,7 +233,14 @@ func (p *PgDump) generateCreateSequenceStatenentsForTables(tables []string) (str
 }
 
 func (p *PgDump) getCreateSchemaStatement(schemaName string) (string, error) {
-	return fmt.Sprintf("CREATE SCHEMA %s IF NOT EXISTS;", schemaName), nil
+	if p.isSystemSchema(schemaName) {
+		return "", nil
+	}
+	return fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s;", schemaName), nil
+}
+
+func (p *PgDump) isSystemSchema(schemaName string) bool {
+	return strings.HasPrefix(schemaName, "pg_") || schemaName == "information_schema"
 }
 
 func (p *PgDump) getCreateTableStatement(tableName string) (string, error) {

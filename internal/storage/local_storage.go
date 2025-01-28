@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"io"
 	"os"
 
 	"github.com/sboy99/go-vault/config"
@@ -37,8 +38,7 @@ func (ls *LocalStorage) Load(filename string) ([]byte, error) {
 	}
 	defer file.Close()
 
-	data := make([]byte, 0)
-	_, err = file.Read(data)
+	data, err := io.ReadAll(file)
 	if err != nil {
 		return nil, err
 	}

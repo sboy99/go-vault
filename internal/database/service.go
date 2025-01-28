@@ -92,6 +92,44 @@ func (d *DatabaseService) ListBackups() {
 	}
 }
 
+func (d *DatabaseService) RestoreBackup(backupFilename string) {
+	cfg := config.GetConfig()
+
+	logger.Info("Connecting to DB...")
+	if err := d.database.Connect(
+		cfg.DB.Type,
+		cfg.DB.Name,
+		cfg.DB.Host,
+		cfg.DB.Port,
+		cfg.DB.Username,
+		cfg.DB.Password,
+	); err != nil {
+		logger.Error("Failed to connect to DB\nDetails: %v", err)
+		return
+	}
+	defer d.database.Close(cfg.DB.Type)
+	logger.Info("Connected to DB")
+
+	logger.Info("Pinging DB...")
+	if err := d.database.Ping(cfg.DB.Type); err != nil {
+		logger.Error("Failed to ping DB\nDetails: %v", err)
+		return
+	}
+	logger.Info("Pinged DB")
+
+	logger.Info("Restoring backup...")
+	data, err := d.storage.Load(cfg.Storage.Type, backupFilename)
+	if err != nil {
+		logger.Error("Failed to load backup\nDetails: %v", err)
+		return
+	}
+	if err := d.database.Restore(cfg.DB.Type, data); err != nil {
+		logger.Error("Failed to restore backup\nDetails: %v", err)
+		return
+	}
+	logger.Info("Restored backup")
+}
+
 func buidlFileName(dbName string) string {
 	return utils.GetUnixTimeStamp() + "_" + dbName + "_" + "backup" + ".sql"
 }

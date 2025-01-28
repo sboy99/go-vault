@@ -29,7 +29,7 @@ func (c *CloudStorage) Save(filename string, data []byte) error {
 }
 
 func (c *CloudStorage) Load(filename string) ([]byte, error) {
-	return nil, nil
+	return c.getCloudStorage().Download(filename)
 }
 
 func (c *CloudStorage) Delete(filename string) error {

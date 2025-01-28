@@ -45,7 +45,19 @@ func (a *AWSCloudStorage) Upload(filename string, data []byte) error {
 }
 
 func (a *AWSCloudStorage) Download(filename string) ([]byte, error) {
-	return nil, fmt.Errorf("Not Impl")
+	s3, err := a.getS3()
+	if err != nil {
+		return nil, err
+	}
+	s3Object := a.createGetObjectInput(filename)
+	result, err := s3.GetObject(s3Object)
+	if err != nil {
+		return nil, err
+	}
+	defer result.Body.Close()
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(result.Body)
+	return buf.Bytes(), nil
 }
 
 func (a *AWSCloudStorage) Delete(filename string) error {
@@ -81,5 +93,12 @@ func (a *AWSCloudStorage) createPutObjectInput(key string, data []byte) *s3.PutO
 		Key:    aws.String(key),
 		Bucket: aws.String(a.BucketName),
 		Body:   bytes.NewReader(data),
+	}
+}
+
+func (a *AWSCloudStorage) createGetObjectInput(key string) *s3.GetObjectInput {
+	return &s3.GetObjectInput{
+		Key:    aws.String(key),
+		Bucket: aws.String(a.BucketName),
 	}
 }

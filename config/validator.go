@@ -14,7 +14,7 @@ func setDefaults() {
 
 	// Storage
 	viper.SetDefault("storage.type", "local")
-	viper.SetDefault("storage.dest", "./generated")
+	viper.SetDefault("storage.dest", "./backups")
 
 	// Storage Cloud
 	// AWS
