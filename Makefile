@@ -43,7 +43,7 @@ dev:
 # Install the binary globally
 install:
 	@mkdir -p $(BINARY_PATH)
-	$(GOBUILD) -o $(BINARY_PATH)/$(BINARY_NAME) -v ./cmd/yourcobracli
+	$(GOBUILD) -o $(BINARY_PATH)/$(BINARY_NAME) -v $(MAIN_PATH)
 	@echo "Binary installed to $(BINARY_PATH)/$(BINARY_NAME)"
 
 # Generate shell completions for the CLI
