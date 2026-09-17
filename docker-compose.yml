@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: app
+      POSTGRES_DB: postgres
     volumes:
       - go_vault_postgres_data:/var/lib/postgresql/data
     networks:
@@ -25,7 +25,7 @@ services:
     environment:
       GO_VAULT_DB_HOST: postgres
       GO_VAULT_DB_PORT: "5432"
-      GO_VAULT_DB_NAME: app
+      GO_VAULT_DB_NAME: postgres
       GO_VAULT_DB_USERNAME: postgres
       GO_VAULT_DB_PASSWORD: postgres
       GO_VAULT_DB_TYPE: POSTGRESQL
