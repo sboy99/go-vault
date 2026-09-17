@@ -106,7 +106,7 @@ func init() {
 	viper.SetConfigName("config")
 	viper.AddConfigPath(".")
 	viper.SetConfigType("yml")
-	viper.SetEnvPrefix("GOVAULT")
+	viper.SetEnvPrefix("GO_VAULT")
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
 	setDefaults()
@@ -134,9 +134,9 @@ func LoadOptional() {
 }
 
 func bindFileSecrets() {
-	resolveFileEnv("db.password", "GOVAULT_DB_PASSWORD_FILE")
-	resolveFileEnv("storage.cloud.aws.access_key_secret", "GOVAULT_STORAGE_CLOUD_AWS_ACCESS_KEY_SECRET_FILE")
-	resolveFileEnv("api.token", "GOVAULT_API_TOKEN_FILE")
+	resolveFileEnv("db.password", "GO_VAULT_DB_PASSWORD_FILE")
+	resolveFileEnv("storage.cloud.aws.access_key_secret", "GO_VAULT_STORAGE_CLOUD_AWS_ACCESS_KEY_SECRET_FILE")
+	resolveFileEnv("api.token", "GO_VAULT_API_TOKEN_FILE")
 }
 
 func resolveFileEnv(configKey, fileEnv string) {

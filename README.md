@@ -24,28 +24,28 @@ The API port is **not** published to the host by default. Attach clients to the 
 
 ## Configuration
 
-Env-first (`GOVAULT_` prefix). Optional `config.yml` for local CLI use.
+Env-first (`GO_VAULT_` prefix). Optional `config.yml` for local CLI use.
 
 | Variable | Default | Description |
 |---|---|---|
-| `GOVAULT_DB_HOST` | | Postgres host |
-| `GOVAULT_DB_PORT` | `5432` | Postgres port |
-| `GOVAULT_DB_NAME` | | Database name |
-| `GOVAULT_DB_USERNAME` | | Username |
-| `GOVAULT_DB_PASSWORD` | | Password (or `GOVAULT_DB_PASSWORD_FILE`) |
-| `GOVAULT_DB_SSLMODE` | `require` | libpq sslmode |
-| `GOVAULT_STORAGE_TYPE` | `LOCAL` | `LOCAL` or `CLOUD` |
-| `GOVAULT_STORAGE_DEST` | `./backups` | Local backup directory |
-| `GOVAULT_SCHEDULE_CRON` | `0 2 * * *` | Daily backup cron |
-| `GOVAULT_SCHEDULE_TIMEZONE` | `UTC` | Cron timezone |
-| `GOVAULT_RETENTION_DAILY` | `7` | Keep newest backup per day for N days |
-| `GOVAULT_RETENTION_WEEKLY` | `4` | Keep newest backup per ISO week for N weeks |
-| `GOVAULT_RETENTION_MONTHLY` | `12` | Keep newest backup per month for N months |
-| `GOVAULT_API_ADDR` | `:8080` | HTTP listen address |
-| `GOVAULT_API_TOKEN` | | Optional bearer token |
-| `GOVAULT_RUNTIME_META_DB_PATH` | `./go-vault.db` | BoltDB path |
-| `GOVAULT_RUNTIME_TEMP_DIR` | `/tmp/go-vault` | Spool for verify/restore |
-| `GOVAULT_RUNTIME_ALERT_WEBHOOK` | | Optional failure webhook URL |
+| `GO_VAULT_DB_HOST` | | Postgres host |
+| `GO_VAULT_DB_PORT` | `5432` | Postgres port |
+| `GO_VAULT_DB_NAME` | | Database name |
+| `GO_VAULT_DB_USERNAME` | | Username |
+| `GO_VAULT_DB_PASSWORD` | | Password (or `GO_VAULT_DB_PASSWORD_FILE`) |
+| `GO_VAULT_DB_SSLMODE` | `require` | libpq sslmode |
+| `GO_VAULT_STORAGE_TYPE` | `LOCAL` | `LOCAL` or `CLOUD` |
+| `GO_VAULT_STORAGE_DEST` | `./backups` | Local backup directory |
+| `GO_VAULT_SCHEDULE_CRON` | `0 2 * * *` | Daily backup cron |
+| `GO_VAULT_SCHEDULE_TIMEZONE` | `UTC` | Cron timezone |
+| `GO_VAULT_RETENTION_DAILY` | `7` | Keep newest backup per day for N days |
+| `GO_VAULT_RETENTION_WEEKLY` | `4` | Keep newest backup per ISO week for N weeks |
+| `GO_VAULT_RETENTION_MONTHLY` | `12` | Keep newest backup per month for N months |
+| `GO_VAULT_API_ADDR` | `:8080` | HTTP listen address |
+| `GO_VAULT_API_TOKEN` | | Optional bearer token |
+| `GO_VAULT_RUNTIME_META_DB_PATH` | `./go-vault.db` | BoltDB path |
+| `GO_VAULT_RUNTIME_TEMP_DIR` | `/tmp/go-vault` | Spool for verify/restore |
+| `GO_VAULT_RUNTIME_ALERT_WEBHOOK` | | Optional failure webhook URL |
 
 ## CLI
 
@@ -76,11 +76,29 @@ Envelope: `{ "success": bool, "data": ..., "error": ... }`
 
 ## Requirements
 
-- Go 1.22+
+- Go 1.25+
 - `pg_dump` / `pg_restore` with client major >= server major (image ships 15/16/17)
+
+## Releasing
+
+Images are published to Docker Hub as [`sboy99/go-vault`](https://hub.docker.com/r/sboy99/go-vault) when a semver git tag is pushed.
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+# → docker pull sboy99/go-vault:0.1.0
+#    also tags: 0.1, 0, latest
+```
+
+Required GitHub repository secrets (Settings → Secrets and variables → Actions):
+
+| Secret | Description |
+|---|---|
+| `DOCKERHUB_USERNAME` | Docker Hub username |
+| `DOCKERHUB_TOKEN` | Docker Hub access token (or password) |
 
 ## Safety notes
 
 - Restore uses `pg_restore --clean --if-exists` and can leave a partial database on failure. Take a fresh backup before restoring when possible.
-- Keep the API on a private network. Set `GOVAULT_API_TOKEN` if the port is reachable more broadly.
+- Keep the API on a private network. Set `GO_VAULT_API_TOKEN` if the port is reachable more broadly.
 - Credentials live in env / secrets files, not in the dump artifact metadata beyond what Postgres requires at dump time.

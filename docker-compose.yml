@@ -1,14 +1,15 @@
 services:
   postgres:
+    container_name: go-vault-postgres
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: app
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - go_vault_postgres_data:/var/lib/postgresql/data
     networks:
-      - backup_net
+      - go_vault_net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d app"]
       interval: 5s
@@ -16,41 +17,45 @@ services:
       retries: 10
 
   go-vault:
+    container_name: go-vault
     build: .
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      GOVAULT_DB_HOST: postgres
-      GOVAULT_DB_PORT: "5432"
-      GOVAULT_DB_NAME: app
-      GOVAULT_DB_USERNAME: postgres
-      GOVAULT_DB_PASSWORD: postgres
-      GOVAULT_DB_TYPE: POSTGRESQL
-      GOVAULT_DB_SSLMODE: disable
-      GOVAULT_STORAGE_TYPE: LOCAL
-      GOVAULT_STORAGE_DEST: /data/backups
-      GOVAULT_RUNTIME_META_DB_PATH: /data/meta/go-vault.db
-      GOVAULT_SCHEDULE_CRON: "0 2 * * *"
-      GOVAULT_SCHEDULE_TIMEZONE: UTC
-      GOVAULT_RETENTION_DAILY: "7"
-      GOVAULT_RETENTION_WEEKLY: "4"
-      GOVAULT_RETENTION_MONTHLY: "12"
-      GOVAULT_API_ADDR: ":8080"
+      GO_VAULT_DB_HOST: postgres
+      GO_VAULT_DB_PORT: "5432"
+      GO_VAULT_DB_NAME: app
+      GO_VAULT_DB_USERNAME: postgres
+      GO_VAULT_DB_PASSWORD: postgres
+      GO_VAULT_DB_TYPE: POSTGRESQL
+      GO_VAULT_DB_SSLMODE: disable
+      GO_VAULT_STORAGE_TYPE: LOCAL
+      GO_VAULT_STORAGE_DEST: /data/backups
+      GO_VAULT_RUNTIME_META_DB_PATH: /data/meta/go-vault.db
+      GO_VAULT_SCHEDULE_CRON: "0 2 * * *"
+      GO_VAULT_SCHEDULE_TIMEZONE: UTC
+      GO_VAULT_RETENTION_DAILY: "7"
+      GO_VAULT_RETENTION_WEEKLY: "4"
+      GO_VAULT_RETENTION_MONTHLY: "12"
+      GO_VAULT_API_ADDR: ":8080"
     volumes:
-      - vault_backups:/data/backups
-      - vault_meta:/data/meta
+      - go_vault_backups:/data/backups
+      - go_vault_meta:/data/meta
     networks:
-      - backup_net
-    # Intentionally not publishing 8080 to the host.
-    # Access via: docker compose exec go-vault curl http://127.0.0.1:8080/v1/backups
-    # Or attach another service to backup_net.
+      - go_vault_net
+    ports:
+      - "8080:8080"
 
 networks:
-  backup_net:
+  go_vault_net:
+    name: go_vault_net
     driver: bridge
 
 volumes:
-  pgdata:
-  vault_backups:
-  vault_meta:
+  go_vault_postgres_data:
+    name: go_vault_postgres_data
+  go_vault_backups:
+    name: go_vault_backups
+  go_vault_meta:
+    name: go_vault_meta

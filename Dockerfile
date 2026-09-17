@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM golang:1.23-bookworm AS build
+FROM golang:1.25-bookworm AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
@@ -30,17 +30,17 @@ COPY --from=build /out/go-vault /usr/local/bin/go-vault
 USER govault
 WORKDIR /data
 
-ENV GOVAULT_STORAGE_TYPE=LOCAL \
-    GOVAULT_STORAGE_DEST=/data/backups \
-    GOVAULT_RUNTIME_META_DB_PATH=/data/meta/go-vault.db \
-    GOVAULT_RUNTIME_TEMP_DIR=/tmp/go-vault \
-    GOVAULT_API_ADDR=:8080 \
-    GOVAULT_SCHEDULE_CRON="0 2 * * *" \
-    GOVAULT_SCHEDULE_TIMEZONE=UTC \
-    GOVAULT_RETENTION_DAILY=7 \
-    GOVAULT_RETENTION_WEEKLY=4 \
-    GOVAULT_RETENTION_MONTHLY=12 \
-    GOVAULT_DB_SSLMODE=disable \
+ENV GO_VAULT_STORAGE_TYPE=LOCAL \
+    GO_VAULT_STORAGE_DEST=/data/backups \
+    GO_VAULT_RUNTIME_META_DB_PATH=/data/meta/go-vault.db \
+    GO_VAULT_RUNTIME_TEMP_DIR=/tmp/go-vault \
+    GO_VAULT_API_ADDR=:8080 \
+    GO_VAULT_SCHEDULE_CRON="0 2 * * *" \
+    GO_VAULT_SCHEDULE_TIMEZONE=UTC \
+    GO_VAULT_RETENTION_DAILY=7 \
+    GO_VAULT_RETENTION_WEEKLY=4 \
+    GO_VAULT_RETENTION_MONTHLY=12 \
+    GO_VAULT_DB_SSLMODE=disable \
     TZ=UTC
 
 VOLUME ["/data/backups", "/data/meta"]
