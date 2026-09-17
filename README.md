@@ -94,8 +94,7 @@ Required GitHub repository secrets (Settings → Secrets and variables → Actio
 
 | Secret | Description |
 |---|---|
-| `DOCKERHUB_USERNAME` | Docker Hub username |
-| `DOCKERHUB_TOKEN` | Docker Hub access token (or password) |
+| `DOCKERHUB_TOKEN` | Docker Hub access token for user `sboy99` |
 
 ## Safety notes
 
