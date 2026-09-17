@@ -6,14 +6,13 @@ import (
 )
 
 func restoreBackupValidArgs(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	maxSize, offset := 15, 0
-	backupMetaList, err := meta.ListBackupMeta(maxSize, offset)
+	backupMetaList, err := meta.ListBackupMeta(50, 0)
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveError
 	}
-	backupNames := make([]string, len(backupMetaList))
-	for i, v := range backupMetaList {
-		backupNames[i] = v.Name
+	names := make([]string, 0, len(backupMetaList)*2)
+	for _, v := range backupMetaList {
+		names = append(names, v.BackupId, v.Name)
 	}
-	return backupNames, cobra.ShellCompDirectiveNoFileComp
+	return names, cobra.ShellCompDirectiveNoFileComp
 }

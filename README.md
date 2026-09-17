@@ -1,147 +1,86 @@
 # Go-Vault
 
-CLI for backing up and restoring a database. Run `go-vault setup` once, then create, list, and restore dumps from the terminal.
+Production PostgreSQL backup service. Uses the official `pg_dump` / `pg_restore` binaries, runs on a cron schedule inside Docker, enforces GFS retention (7 daily / 4 weekly / 12 monthly), and exposes an HTTP API to list, download, trigger, and restore backups.
 
-Today only **PostgreSQL** is implemented. MySQL and MongoDB show up in setup, but they are not wired yet.
+## Features
 
-## What it does
+- Custom-format dumps (`pg_dump -Fc`) with `pg_restore --list` verification
+- Streaming upload to local disk or S3 (aws-sdk-go-v2)
+- GFS retention with timezone-aware day/week/month boundaries
+- Scheduler + single-flight job runner (no overlapping dumps)
+- HTTP API on a private Docker network (optional bearer token)
+- Prometheus metrics including `govault_backup_last_success_timestamp`
 
-1. Walks you through database and storage settings and writes `config.yml`.
-2. Connects to Postgres, dumps schema plus data as SQL (no `pg_dump` binary required).
-3. Saves the dump locally (`./backups` by default) or to an S3 bucket.
-4. Records backup metadata in a local BoltDB file (`go-vault.db`).
-5. Restores a named dump back into the configured database.
+## Quick start (Docker Compose)
 
-Dump files are named `<unix-timestamp>_<db-name>_backup.sql`.
+```bash
+docker compose up -d --build
+docker compose exec go-vault curl -s http://127.0.0.1:8080/healthz
+docker compose exec go-vault curl -s -X POST http://127.0.0.1:8080/v1/backups
+docker compose exec go-vault curl -s http://127.0.0.1:8080/v1/backups
+```
+
+The API port is **not** published to the host by default. Attach clients to the `backup_net` network.
+
+## Configuration
+
+Env-first (`GOVAULT_` prefix). Optional `config.yml` for local CLI use.
+
+| Variable | Default | Description |
+|---|---|---|
+| `GOVAULT_DB_HOST` | | Postgres host |
+| `GOVAULT_DB_PORT` | `5432` | Postgres port |
+| `GOVAULT_DB_NAME` | | Database name |
+| `GOVAULT_DB_USERNAME` | | Username |
+| `GOVAULT_DB_PASSWORD` | | Password (or `GOVAULT_DB_PASSWORD_FILE`) |
+| `GOVAULT_DB_SSLMODE` | `require` | libpq sslmode |
+| `GOVAULT_STORAGE_TYPE` | `LOCAL` | `LOCAL` or `CLOUD` |
+| `GOVAULT_STORAGE_DEST` | `./backups` | Local backup directory |
+| `GOVAULT_SCHEDULE_CRON` | `0 2 * * *` | Daily backup cron |
+| `GOVAULT_SCHEDULE_TIMEZONE` | `UTC` | Cron timezone |
+| `GOVAULT_RETENTION_DAILY` | `7` | Keep newest backup per day for N days |
+| `GOVAULT_RETENTION_WEEKLY` | `4` | Keep newest backup per ISO week for N weeks |
+| `GOVAULT_RETENTION_MONTHLY` | `12` | Keep newest backup per month for N months |
+| `GOVAULT_API_ADDR` | `:8080` | HTTP listen address |
+| `GOVAULT_API_TOKEN` | | Optional bearer token |
+| `GOVAULT_RUNTIME_META_DB_PATH` | `./go-vault.db` | BoltDB path |
+| `GOVAULT_RUNTIME_TEMP_DIR` | `/tmp/go-vault` | Spool for verify/restore |
+| `GOVAULT_RUNTIME_ALERT_WEBHOOK` | | Optional failure webhook URL |
+
+## CLI
+
+```bash
+make build
+./bin/go-vault setup
+./bin/go-vault backup create
+./bin/go-vault backup list
+./bin/go-vault backup restore <backup_id_or_name>
+./bin/go-vault serve
+```
+
+## HTTP API
+
+Envelope: `{ "success": bool, "data": ..., "error": ... }`
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/healthz` | Liveness |
+| GET | `/readyz` | Readiness (DB ping) |
+| GET | `/metrics` | Prometheus |
+| GET | `/v1/backups` | List backups |
+| GET | `/v1/backups/{id}` | Backup metadata |
+| GET | `/v1/backups/{id}/download` | Download artifact |
+| POST | `/v1/backups` | Trigger backup (+ prune) |
+| POST | `/v1/restores` | Restore (`backup_id` + `confirm` = db name) |
+| GET | `/v1/jobs/{id}` | Job status |
 
 ## Requirements
 
 - Go 1.22+
-- A reachable PostgreSQL database
-- For cloud storage: an S3 bucket (or any S3-compatible endpoint)
+- `pg_dump` / `pg_restore` with client major >= server major (image ships 15/16/17)
 
-## Install
+## Safety notes
 
-```bash
-git clone https://github.com/sboy99/go-vault.git
-cd go-vault
-make build
-```
-
-The binary lands at `./bin/go-vault`.
-
-```bash
-make install   # same as build
-make test
-make clean
-```
-
-Or without Make:
-
-```bash
-go build -o ./bin/go-vault ./cmd/go-vault
-```
-
-### Docker
-
-```bash
-docker build -t go-vault .
-docker run --rm -it go-vault
-```
-
-The image runs `./go-vault` with no args, which prints help. Mount a working directory if you want `config.yml` and backups to persist.
-
-## Usage
-
-All commands except `setup` need a `config.yml` in the current directory.
-
-```bash
-# Interactive config (DB + storage)
-go-vault setup
-
-# Create a dump and store it
-go-vault backup create
-
-# Show recent backups (up to 15)
-go-vault backup list
-
-# Restore a dump by filename
-go-vault backup restore 1710000000_postgres_backup.sql
-```
-
-`backup restore` has shell completion for dump names from metadata. Generate completions with `make completions`.
-
-## Configuration
-
-`go-vault setup` writes `config.yml`. You can also create it by hand:
-
-```yaml
-app:
-  name: go-vault
-  version: 0.0.1
-db:
-  name: postgres
-  type: POSTGRESQL
-  host: localhost
-  port: 5432
-  username: postgres
-  password: secret
-storage:
-  type: LOCAL          # LOCAL or CLOUD
-  dest: ./backups
-  cloud:
-    type: AWS          # AWS only for now
-    aws:
-      region: ap-south-1
-      bucket_name: my-backups
-      access_key_id: ...
-      access_key_secret: ...
-      endpoint: default  # or a custom S3-compatible URL
-```
-
-Set `storage.cloud.aws.endpoint` to something other than `default` for MinIO or other S3-compatible stores (path-style addressing is enabled).
-
-`config.yml` and `go-vault.db` are gitignored. They contain credentials and backup history — keep them out of source control.
-
-Create the local destination before the first backup if it does not already exist:
-
-```bash
-mkdir -p backups
-```
-
-## How a backup is built
-
-Postgres dumps are generated in-process against `information_schema` and table data:
-
-- schemas (non-system)
-- extensions
-- `CREATE TABLE` for public tables
-- sequences
-- primary keys
-- `COPY ... FROM stdin` row data
-
-Restore reads that SQL file and executes it against the configured database.
-
-## Project layout
-
-```
-cmd/go-vault/     CLI entrypoint
-internal/cmd/     Cobra commands
-internal/config/  Interactive setup
-internal/database Postgres adapter
-internal/storage  Local disk + AWS S3
-internal/meta     Backup metadata (BoltDB)
-internal/ui       Prompts and table output
-pkg/pg_dump/      SQL dump generator
-config/           Config load/save/validate
-```
-
-## Current limits
-
-- PostgreSQL only. MySQL and MongoDB are placeholders.
-- GCP cloud storage is a placeholder. AWS S3 works; custom endpoints are supported.
-- Postgres connections use `sslmode=disable`.
-- Credentials are stored in plaintext in `config.yml`.
-- Backups are not encrypted at rest by go-vault.
-- Cloud delete is not implemented.
-- The dump covers public tables, schemas, extensions, sequences, and primary keys. Indexes, foreign keys, views, functions, and roles are not dumped.
+- Restore uses `pg_restore --clean --if-exists` and can leave a partial database on failure. Take a fresh backup before restoring when possible.
+- Keep the API on a private network. Set `GOVAULT_API_TOKEN` if the port is reachable more broadly.
+- Credentials live in env / secrets files, not in the dump artifact metadata beyond what Postgres requires at dump time.

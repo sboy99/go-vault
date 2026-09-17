@@ -59,6 +59,7 @@ func (c *ConfigService) SetupConfig() {
 		return
 	}
 	cfg.DB.Password = dbPass
+	cfg.DB.SSLMode = "require"
 
 	storageType, err := ui.DisplaySelectStorageTypePrompt()
 	if err != nil {

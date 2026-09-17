@@ -4,18 +4,23 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// rootCmd represents the base command
 var rootCmd = &cobra.Command{
 	Use:   "go-vault",
-	Short: "CLI tool for db backups and restores",
-	Long:  "Manage your database backups and restores with ease.",
+	Short: "Production PostgreSQL backup service powered by pg_dump",
+	Long:  "Schedule, store, list, and restore PostgreSQL backups using the official pg_dump/pg_restore binaries.",
 	Run:   rootCmdHandler,
 }
 
 var setupCmd = &cobra.Command{
 	Use:   "setup",
-	Short: "Setup config of your database.",
+	Short: "Interactive setup of database and storage config.",
 	Run:   setupCmdHandler,
+}
+
+var serveCmd = &cobra.Command{
+	Use:   "serve",
+	Short: "Run the backup scheduler and HTTP API.",
+	Run:   serveCmdHandler,
 }
 
 var backupCmd = &cobra.Command{
@@ -37,21 +42,22 @@ var listBackupCmd = &cobra.Command{
 }
 
 var restoreBackupCmd = &cobra.Command{
-	Use:               "restore [backup_name]",
+	Use:               "restore [backup_id_or_name]",
 	Short:             "Restore a backup of your database.",
+	Args:              cobra.ExactArgs(1),
 	ValidArgsFunction: restoreBackupValidArgs,
 	Run:               restoreBackupCmdHandler,
 }
 
 func init() {
 	rootCmd.AddCommand(setupCmd)
+	rootCmd.AddCommand(serveCmd)
 	rootCmd.AddCommand(backupCmd)
 	backupCmd.AddCommand(createBackupCmd)
 	backupCmd.AddCommand(listBackupCmd)
 	backupCmd.AddCommand(restoreBackupCmd)
 }
 
-// Execute runs the root command
 func Execute() error {
 	return rootCmd.Execute()
 }

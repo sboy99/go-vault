@@ -33,12 +33,11 @@ clean:
 test:
 	$(GOTEST) -v ./...
 
-# Development - watch and rebuild on file changes
+# Development - build then print help
 dev:
 	@mkdir -p $(BINARY_PATH)
 	$(GOBUILD) -o $(BINARY_PATH)/$(BINARY_NAME) -v $(MAIN_PATH)
-	@echo "Starting $(BINARY_NAME) in development mode..."
-	@$(BINARY_PATH)/$(BINARY_NAME) serve
+	@echo "Built $(BINARY_PATH)/$(BINARY_NAME). Run: $(BINARY_PATH)/$(BINARY_NAME) serve"
 
 # Install the binary globally
 install:

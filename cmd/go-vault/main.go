@@ -9,37 +9,44 @@ import (
 	"github.com/sboy99/go-vault/pkg/logger"
 )
 
-func cleanup() {
-	if err := meta.Cleanup(); err != nil {
+func main() {
+	logger.Init(logger.INFO)
+
+	defer func() {
+		if err := meta.Cleanup(); err != nil {
+			logger.Error("%s", err.Error())
+		}
+	}()
+
+	if needsConfig() {
+		if err := config.Load(); err != nil {
+			logger.Error("%s", err.Error())
+			os.Exit(1)
+		}
+	} else {
+		config.LoadOptional()
+	}
+
+	cfg := config.GetConfig()
+	if err := meta.Init(cfg.Runtime.MetaDBPath); err != nil {
 		logger.Error("%s", err.Error())
+		os.Exit(1)
+	}
+
+	if err := cmd.Execute(); err != nil {
+		logger.Error("%s", err.Error())
+		os.Exit(1)
 	}
 }
 
-func main() {
-	// Cleanup //
-	defer cleanup()
-
-	// Logger //
-	logger.Init(logger.DEBUG)
-
-	// MetaData //
-	if err := meta.Init(); err != nil {
-		logger.Error("%s", err.Error())
-		return
+func needsConfig() bool {
+	if len(os.Args) < 2 {
+		return false
 	}
-
-	// User Config //
-	if len(os.Args) > 1 && os.Args[1] != "setup" {
-		if err := config.Load(); err != nil {
-			logger.Error("%s", err.Error())
-			return
-		}
+	switch os.Args[1] {
+	case "setup", "help", "completion", "--help", "-h":
+		return false
+	default:
+		return true
 	}
-
-	// Cmd //
-	if err := cmd.Execute(); err != nil {
-		logger.Error("%s", err.Error())
-		return
-	}
-
 }
