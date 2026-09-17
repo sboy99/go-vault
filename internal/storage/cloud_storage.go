@@ -12,7 +12,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/sboy99/go-vault/config"
 )
@@ -37,7 +36,6 @@ func (h *hashingReader) Read(p []byte) (int, error) {
 
 type AWSCloudStorage struct {
 	client     *s3.Client
-	uploader   *manager.Uploader
 	bucketName string
 }
 
@@ -67,7 +65,6 @@ func NewAWSCloudStorage(cfg *config.Config) (*AWSCloudStorage, error) {
 
 	return &AWSCloudStorage{
 		client:     client,
-		uploader:   manager.NewUploader(client),
 		bucketName: awsCfg.BucketName,
 	}, nil
 }
@@ -76,7 +73,7 @@ func (a *AWSCloudStorage) Save(ctx context.Context, key string, r io.Reader) (Ob
 	hasher := sha256.New()
 	hr := &hashingReader{r: readerWithContext(ctx, r), hasher: hasher}
 
-	_, err := a.uploader.Upload(ctx, &s3.PutObjectInput{
+	_, err := a.client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(a.bucketName),
 		Key:    aws.String(key),
 		Body:   hr,

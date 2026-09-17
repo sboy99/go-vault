@@ -13,7 +13,7 @@ func ReadFile(filePath string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	content, err := io.ReadAll(file)
 	if err != nil {
@@ -28,7 +28,7 @@ func WriteFile(filePath string, content string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	_, err = file.WriteString(content)
 	return err
@@ -40,7 +40,7 @@ func AppendToFile(filePath string, content string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	_, err = file.WriteString(content)
 	return err
@@ -121,13 +121,13 @@ func CopyFile(srcPath, destPath string) error {
 	if err != nil {
 		return err
 	}
-	defer srcFile.Close()
+	defer func() { _ = srcFile.Close() }()
 
 	destFile, err := os.Create(destPath)
 	if err != nil {
 		return err
 	}
-	defer destFile.Close()
+	defer func() { _ = destFile.Close() }()
 
 	_, err = io.Copy(destFile, srcFile)
 	return err

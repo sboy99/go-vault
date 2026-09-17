@@ -198,7 +198,7 @@ func (e *PostgresEngine) serverMajor(ctx context.Context, p ConnParams) (int, st
 	if err != nil {
 		return 0, "", fmt.Errorf("open db: %w", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	if err := db.PingContext(ctx); err != nil {
 		return 0, "", fmt.Errorf("ping db: %w", err)

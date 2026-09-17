@@ -136,7 +136,7 @@ func (s *Server) handleDownloadBackup(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, err.Error())
 		return
 	}
-	defer rc.Close()
+	defer func() { _ = rc.Close() }()
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", "attachment; filename=\""+b.Name+"\"")
 	_, _ = io.Copy(w, rc)

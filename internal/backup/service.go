@@ -51,7 +51,7 @@ func (s *Service) CreateBackup(ctx context.Context) (*meta.BackupMeta, error) {
 	var dumpRes *engine.DumpResult
 
 	go func() {
-		defer pw.Close()
+		defer func() { _ = pw.Close() }()
 		res, err := s.engine.DumpTo(ctx, s.connParams(), pw)
 		dumpRes = res
 		errCh <- err
@@ -84,7 +84,7 @@ func (s *Service) CreateBackup(ctx context.Context) (*meta.BackupMeta, error) {
 		alert.NotifyFailure(s.cfg.Runtime.AlertWebhook, "backup_failed", err.Error())
 		return backupMeta, fmt.Errorf("spool for verify: %w", err)
 	}
-	defer os.Remove(tmpPath)
+	defer func() { _ = os.Remove(tmpPath) }()
 
 	major := 0
 	pgVersion := ""
@@ -92,9 +92,7 @@ func (s *Service) CreateBackup(ctx context.Context) (*meta.BackupMeta, error) {
 		major = dumpRes.ServerMajor
 		pgVersion = dumpRes.ServerVersion
 	}
-	verified := true
 	if err := s.engine.Verify(ctx, tmpPath, major); err != nil {
-		verified = false
 		_ = backupMeta.MarkFailed(err.Error())
 		_ = s.store.Delete(ctx, filename)
 		metrics.ObserveBackupFailure()
@@ -102,7 +100,7 @@ func (s *Service) CreateBackup(ctx context.Context) (*meta.BackupMeta, error) {
 		return backupMeta, fmt.Errorf("verify: %w", err)
 	}
 
-	if err := backupMeta.MarkSuccess(info.Size, info.SHA256, pgVersion, verified); err != nil {
+	if err := backupMeta.MarkSuccess(info.Size, info.SHA256, pgVersion, true); err != nil {
 		return backupMeta, err
 	}
 	metrics.ObserveBackupSuccess(started, info.Size)
@@ -144,7 +142,7 @@ func (s *Service) RestoreBackup(ctx context.Context, backupID string) error {
 		metrics.RestoreTotal.WithLabelValues("failed").Inc()
 		return err
 	}
-	defer os.Remove(tmpPath)
+	defer func() { _ = os.Remove(tmpPath) }()
 
 	if err := s.engine.Restore(ctx, s.connParams(), tmpPath, s.cfg.Runtime.RestoreJobs); err != nil {
 		metrics.RestoreTotal.WithLabelValues("failed").Inc()
@@ -256,12 +254,12 @@ func (s *Service) spoolToFile(ctx context.Context, key, dest string) error {
 	if err != nil {
 		return err
 	}
-	defer rc.Close()
+	defer func() { _ = rc.Close() }()
 	f, err := os.Create(dest)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	_, err = io.Copy(f, rc)
 	return err
 }

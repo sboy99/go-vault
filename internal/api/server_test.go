@@ -60,9 +60,9 @@ func TestRestoreRequiresConfirm(t *testing.T) {
 
 func TestBearerAuthWhenConfigured(t *testing.T) {
 	dir := t.TempDir()
-	cfg := setupTestConfig(t, dir)
+	_ = setupTestConfig(t, dir)
 	viper.Set("api.token", "secret")
-	cfg = config.GetConfig()
+	cfg := config.GetConfig()
 
 	store, err := storage.NewStorage(cfg)
 	if err != nil {
