@@ -18,10 +18,7 @@ services:
 
   go-vault:
     container_name: go-vault
-    build: .
-    depends_on:
-      postgres:
-        condition: service_healthy
+    image: sboy99/go-vault:latest
     environment:
       GO_VAULT_DB_HOST: postgres
       GO_VAULT_DB_PORT: "5432"
@@ -29,12 +26,6 @@ services:
       GO_VAULT_DB_USERNAME: postgres
       GO_VAULT_DB_PASSWORD: postgres
       GO_VAULT_DB_TYPE: POSTGRESQL
-      GO_VAULT_DB_SSLMODE: disable
-      GO_VAULT_STORAGE_TYPE: LOCAL
-      GO_VAULT_STORAGE_DEST: /data/backups
-      GO_VAULT_RUNTIME_META_DB_PATH: /data/meta/go-vault.db
-      GO_VAULT_SCHEDULE_CRON: "0 2 * * *"
-      GO_VAULT_SCHEDULE_TIMEZONE: UTC
       GO_VAULT_RETENTION_DAILY: "7"
       GO_VAULT_RETENTION_WEEKLY: "4"
       GO_VAULT_RETENTION_MONTHLY: "12"
