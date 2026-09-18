@@ -25,9 +25,9 @@ type Server struct {
 }
 
 type envelope struct {
-	Success bool        `json:"success"`
-	Data    interface{} `json:"data"`
-	Error   *string     `json:"error"`
+	Success bool    `json:"success"`
+	Data    any     `json:"data"`
+	Error   *string `json:"error"`
 }
 
 func NewServer(cfg *config.Config, svc *backup.Service, runner *job.Runner) *Server {
@@ -50,6 +50,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /v1/backups/{id}/download", s.handleDownloadBackup)
 	s.mux.HandleFunc("POST /v1/backups", s.handleCreateBackup)
 	s.mux.HandleFunc("POST /v1/restores", s.handleRestore)
+	s.mux.HandleFunc("GET /v1/jobs", s.handleListJobs)
 	s.mux.HandleFunc("GET /v1/jobs/{id}", s.handleGetJob)
 }
 
@@ -195,6 +196,17 @@ func (s *Server) handleGetJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeOK(w, j)
+}
+
+func (s *Server) handleListJobs(w http.ResponseWriter, r *http.Request) {
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+	jobs, err := job.List(limit, offset)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeOK(w, jobs)
 }
 
 func writeOK(w http.ResponseWriter, data interface{}) {

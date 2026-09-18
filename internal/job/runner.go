@@ -62,7 +62,7 @@ func (r *Runner) TryStart(jobType Type, backupID string, fn func(ctx context.Con
 	r.mu.Unlock()
 
 	j := &Job{
-		ID:        fmt.Sprintf("%s_%s", time.Now().UTC().Format(time.RFC3339Nano), utils.GenerateUID()),
+		ID:        utils.GenerateUUID(),
 		Type:      jobType,
 		Status:    StatusRunning,
 		BackupID:  backupID,
@@ -121,6 +121,25 @@ func Get(id string) (*Job, error) {
 		return nil, err
 	}
 	return &j, nil
+}
+
+func List(limit, offset int) ([]*Job, error) {
+	rows, err := boltdb.List(meta.BucketJob(), limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	return decodeJobList(rows)
+}
+
+func decodeJobList(rows [][]byte) ([]*Job, error) {
+	var jobs []*Job
+	for _, row := range rows {
+		var j Job
+		if err := utils.UnmarshalJSON(row, &j); err != nil {
+			return nil, err
+		}
+	}
+	return jobs, nil
 }
 
 func saveJob(j *Job) error {
