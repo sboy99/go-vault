@@ -1,0 +1,98 @@
+/* Semantic utilities matching Nuxt UI / pg-view class names.
+   Base utilities use plain vars; opacity variants used in the app are
+   declared explicitly so color-mix resolves correctly (Tailwind @utility
+   --alpha/--modifier does not reliably expand for custom tokens). */
+
+@layer utilities {
+  .bg-default {
+    background-color: var(--ui-bg);
+  }
+  .bg-muted {
+    background-color: var(--ui-bg-muted);
+  }
+  .bg-elevated {
+    background-color: var(--ui-bg-elevated);
+  }
+  .bg-elevated\/20 {
+    background-color: color-mix(in oklab, var(--ui-bg-elevated) 20%, transparent);
+  }
+  .bg-elevated\/30 {
+    background-color: color-mix(in oklab, var(--ui-bg-elevated) 30%, transparent);
+  }
+  .bg-elevated\/50 {
+    background-color: color-mix(in oklab, var(--ui-bg-elevated) 50%, transparent);
+  }
+  .bg-elevated\/60 {
+    background-color: color-mix(in oklab, var(--ui-bg-elevated) 60%, transparent);
+  }
+  .bg-accented {
+    background-color: var(--ui-bg-accented);
+  }
+  .bg-inverted {
+    background-color: var(--ui-bg-inverted);
+  }
+
+  .text-default {
+    color: var(--ui-text);
+  }
+  .text-dimmed {
+    color: var(--ui-text-dimmed);
+  }
+  .text-muted {
+    color: var(--ui-text-muted);
+  }
+  .text-toned {
+    color: var(--ui-text-toned);
+  }
+  .text-highlighted {
+    color: var(--ui-text-highlighted);
+  }
+  .text-inverted {
+    color: var(--ui-text-inverted);
+  }
+
+  .border-default {
+    border-color: var(--ui-border);
+  }
+  .border-muted {
+    border-color: var(--ui-border-muted);
+  }
+  .border-accented {
+    border-color: var(--ui-border-accented);
+  }
+  .border-inverted {
+    border-color: var(--ui-border-inverted);
+  }
+
+  .ring-accented {
+    --tw-ring-color: var(--ui-border-accented);
+  }
+
+  .divide-default > :not([hidden]) ~ :not([hidden]) {
+    border-color: var(--ui-border);
+  }
+
+  .hover\:bg-elevated:hover {
+    background-color: var(--ui-bg-elevated);
+  }
+  .hover\:bg-elevated\/30:hover {
+    background-color: color-mix(in oklab, var(--ui-bg-elevated) 30%, transparent);
+  }
+  .hover\:bg-elevated\/60:hover {
+    background-color: color-mix(in oklab, var(--ui-bg-elevated) 60%, transparent);
+  }
+  .hover\:bg-accented:hover {
+    background-color: var(--ui-bg-accented);
+  }
+  .hover\:text-highlighted:hover {
+    color: var(--ui-text-highlighted);
+  }
+
+  .data-\[highlighted\]\:bg-elevated[data-highlighted] {
+    background-color: var(--ui-bg-elevated);
+  }
+
+  .placeholder\:text-dimmed::placeholder {
+    color: var(--ui-text-dimmed);
+  }
+}
