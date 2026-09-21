@@ -29,7 +29,9 @@ func rootCmdHandler(cmd *cobra.Command, args []string) {
 
 func setupCmdHandler(cmd *cobra.Command, args []string) {
 	config.LoadOptional()
-	setup.NewConfigService().SetupConfig()
+	if err := setup.NewConfigService().SetupConfig(); err != nil {
+		logger.Error("%v", err)
+	}
 }
 
 func backupCmdHandler(cmd *cobra.Command, args []string) {
