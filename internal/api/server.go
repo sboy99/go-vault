@@ -145,11 +145,7 @@ func (s *Server) handleDownloadBackup(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateBackup(w http.ResponseWriter, r *http.Request) {
 	j, err := s.runner.TryStart(job.TypeBackup, "", func(ctx context.Context) error {
-		_, err := s.svc.CreateBackup(ctx)
-		if err != nil {
-			return err
-		}
-		_, err = s.svc.Prune(ctx)
+		_, err := s.svc.BackupAndPrune(ctx)
 		return err
 	})
 	if err != nil {

@@ -34,12 +34,8 @@ func (s *Scheduler) Start() error {
 	id, err := s.cron.AddFunc(s.cfg.Schedule.Cron, func() {
 		logger.Info("scheduled backup starting")
 		_, err := s.runner.TryStart(job.TypeBackup, "", func(ctx context.Context) error {
-			_, err := s.svc.CreateBackup(ctx)
-			if err != nil {
-				return err
-			}
-			_, pruneErr := s.svc.Prune(ctx)
-			return pruneErr
+			_, err := s.svc.BackupAndPrune(ctx)
+			return err
 		})
 		if err != nil {
 			logger.Warn("scheduled backup skipped: %v", err)

@@ -8,15 +8,15 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/sboy99/go-vault/internal/config"
 	"github.com/sboy99/go-vault/internal/alert"
+	"github.com/sboy99/go-vault/internal/config"
 	"github.com/sboy99/go-vault/internal/engine"
 	"github.com/sboy99/go-vault/internal/meta"
 	"github.com/sboy99/go-vault/internal/metrics"
 	"github.com/sboy99/go-vault/internal/retention"
 	"github.com/sboy99/go-vault/internal/storage"
-	"github.com/sboy99/go-vault/pkg/logger"
 	"github.com/sboy99/go-vault/internal/utils"
+	"github.com/sboy99/go-vault/pkg/logger"
 )
 
 // Service orchestrates dump, store, verify, restore, and prune.
@@ -36,96 +36,40 @@ func NewService(cfg *config.Config, store *storage.Storage) *Service {
 
 func (s *Service) CreateBackup(ctx context.Context) (*meta.BackupMeta, error) {
 	started := time.Now().UTC()
-	filename := buildFileName(s.cfg.DB.Name)
-	backupMeta := meta.NewBackupMeta(filename, s.cfg.DB.Type, s.cfg.Storage.Type)
-	backupMeta.StorageKey = filename
-	if err := backupMeta.Save(); err != nil {
-		return nil, fmt.Errorf("save running meta: %w", err)
+	backupMeta, err := s.startMeta()
+	if err != nil {
+		return nil, err
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, s.cfg.Runtime.DumpTimeout)
 	defer cancel()
 
-	pr, pw := io.Pipe()
-	errCh := make(chan error, 1)
-	var dumpRes *engine.DumpResult
+	info, dumpRes, err := s.dumpAndSave(ctx, backupMeta.StorageKey)
+	if err != nil {
+		return s.failBackup(backupMeta, "dump/save", err)
+	}
+	if err := s.verifyDump(ctx, backupMeta, dumpRes); err != nil {
+		_ = s.store.Delete(ctx, backupMeta.StorageKey)
+		return s.failBackup(backupMeta, "verify", err)
+	}
+	return s.markSuccess(backupMeta, info, dumpRes, started)
+}
 
-	go func() {
-		defer func() { _ = pw.Close() }()
-		res, err := s.engine.DumpTo(ctx, s.connParams(), pw)
-		dumpRes = res
-		errCh <- err
-	}()
-
-	info, saveErr := s.store.Save(ctx, filename, pr)
-	dumpErr := <-errCh
-	if dumpErr != nil {
-		_ = backupMeta.MarkFailed(dumpErr.Error())
-		metrics.ObserveBackupFailure()
-		alert.NotifyFailure(s.cfg.Runtime.AlertWebhook, "backup_failed", dumpErr.Error())
-		return backupMeta, fmt.Errorf("dump: %w", dumpErr)
+func (s *Service) BackupAndPrune(ctx context.Context) (*meta.BackupMeta, error) {
+	b, err := s.CreateBackup(ctx)
+	if err != nil {
+		return b, err
 	}
-	if saveErr != nil {
-		_ = backupMeta.MarkFailed(saveErr.Error())
-		metrics.ObserveBackupFailure()
-		alert.NotifyFailure(s.cfg.Runtime.AlertWebhook, "backup_failed", saveErr.Error())
-		return backupMeta, fmt.Errorf("save: %w", saveErr)
+	if _, err := s.Prune(ctx); err != nil {
+		return b, err
 	}
-
-	// Spool for verify
-	if err := os.MkdirAll(s.cfg.Runtime.TempDir, 0o755); err != nil {
-		_ = backupMeta.MarkFailed(err.Error())
-		return backupMeta, err
-	}
-	tmpPath := filepath.Join(s.cfg.Runtime.TempDir, filename+".verify")
-	if err := s.spoolToFile(ctx, filename, tmpPath); err != nil {
-		_ = backupMeta.MarkFailed(err.Error())
-		metrics.ObserveBackupFailure()
-		alert.NotifyFailure(s.cfg.Runtime.AlertWebhook, "backup_failed", err.Error())
-		return backupMeta, fmt.Errorf("spool for verify: %w", err)
-	}
-	defer func() { _ = os.Remove(tmpPath) }()
-
-	major := 0
-	pgVersion := ""
-	if dumpRes != nil {
-		major = dumpRes.ServerMajor
-		pgVersion = dumpRes.ServerVersion
-	}
-	if err := s.engine.Verify(ctx, tmpPath, major); err != nil {
-		_ = backupMeta.MarkFailed(err.Error())
-		_ = s.store.Delete(ctx, filename)
-		metrics.ObserveBackupFailure()
-		alert.NotifyFailure(s.cfg.Runtime.AlertWebhook, "backup_failed", err.Error())
-		return backupMeta, fmt.Errorf("verify: %w", err)
-	}
-
-	if err := backupMeta.MarkSuccess(info.Size, info.SHA256, pgVersion, true); err != nil {
-		return backupMeta, err
-	}
-	metrics.ObserveBackupSuccess(started, info.Size)
-	logger.Info("backup successful id=%s size=%d", backupMeta.BackupId, info.Size)
-	return backupMeta, nil
+	return b, nil
 }
 
 func (s *Service) RestoreBackup(ctx context.Context, backupID string) error {
-	backupMeta, err := meta.GetBackupMeta(backupID)
+	backupMeta, err := s.resolveBackup(backupID)
 	if err != nil {
-		// Allow restore by storage key / filename too.
-		all, listErr := meta.ListAllBackupMeta()
-		if listErr != nil {
-			return err
-		}
-		for _, b := range all {
-			if b.Name == backupID || b.StorageKey == backupID {
-				backupMeta = b
-				err = nil
-				break
-			}
-		}
-		if err != nil || backupMeta == nil {
-			return fmt.Errorf("backup not found: %s", backupID)
-		}
+		return err
 	}
 	if backupMeta.Status != meta.StatusSuccess {
 		return fmt.Errorf("cannot restore backup in status %s", backupMeta.Status)
@@ -236,6 +180,93 @@ func (s *Service) Reconcile(ctx context.Context) error {
 func (s *Service) Ping(ctx context.Context) error {
 	_, _, err := s.engine.ServerVersion(ctx, s.connParams())
 	return err
+}
+
+func (s *Service) startMeta() (*meta.BackupMeta, error) {
+	filename := buildFileName(s.cfg.DB.Name)
+	backupMeta := meta.NewBackupMeta(filename, s.cfg.DB.Type, s.cfg.Storage.Type)
+	backupMeta.StorageKey = filename
+	if err := backupMeta.Save(); err != nil {
+		return nil, fmt.Errorf("save running meta: %w", err)
+	}
+	return backupMeta, nil
+}
+
+func (s *Service) dumpAndSave(ctx context.Context, filename string) (storage.ObjectInfo, *engine.DumpResult, error) {
+	pr, pw := io.Pipe()
+	errCh := make(chan error, 1)
+	var dumpRes *engine.DumpResult
+
+	go func() {
+		defer func() { _ = pw.Close() }()
+		res, err := s.engine.DumpTo(ctx, s.connParams(), pw)
+		dumpRes = res
+		errCh <- err
+	}()
+
+	info, saveErr := s.store.Save(ctx, filename, pr)
+	dumpErr := <-errCh
+	if dumpErr != nil {
+		return storage.ObjectInfo{}, dumpRes, fmt.Errorf("dump: %w", dumpErr)
+	}
+	if saveErr != nil {
+		return storage.ObjectInfo{}, dumpRes, fmt.Errorf("save: %w", saveErr)
+	}
+	return info, dumpRes, nil
+}
+
+func (s *Service) verifyDump(ctx context.Context, backupMeta *meta.BackupMeta, dumpRes *engine.DumpResult) error {
+	if err := os.MkdirAll(s.cfg.Runtime.TempDir, 0o755); err != nil {
+		return err
+	}
+	tmpPath := filepath.Join(s.cfg.Runtime.TempDir, backupMeta.StorageKey+".verify")
+	if err := s.spoolToFile(ctx, backupMeta.StorageKey, tmpPath); err != nil {
+		return fmt.Errorf("spool for verify: %w", err)
+	}
+	defer func() { _ = os.Remove(tmpPath) }()
+
+	major := 0
+	if dumpRes != nil {
+		major = dumpRes.ServerMajor
+	}
+	return s.engine.Verify(ctx, tmpPath, major)
+}
+
+func (s *Service) failBackup(backupMeta *meta.BackupMeta, stage string, err error) (*meta.BackupMeta, error) {
+	_ = backupMeta.MarkFailed(err.Error())
+	metrics.ObserveBackupFailure()
+	alert.NotifyFailure(s.cfg.Runtime.AlertWebhook, "backup_failed", err.Error())
+	return backupMeta, fmt.Errorf("%s: %w", stage, err)
+}
+
+func (s *Service) markSuccess(backupMeta *meta.BackupMeta, info storage.ObjectInfo, dumpRes *engine.DumpResult, started time.Time) (*meta.BackupMeta, error) {
+	pgVersion := ""
+	if dumpRes != nil {
+		pgVersion = dumpRes.ServerVersion
+	}
+	if err := backupMeta.MarkSuccess(info.Size, info.SHA256, pgVersion, true); err != nil {
+		return backupMeta, err
+	}
+	metrics.ObserveBackupSuccess(started, info.Size)
+	logger.Info("backup successful id=%s size=%d", backupMeta.BackupId, info.Size)
+	return backupMeta, nil
+}
+
+func (s *Service) resolveBackup(backupID string) (*meta.BackupMeta, error) {
+	backupMeta, err := meta.GetBackupMeta(backupID)
+	if err == nil {
+		return backupMeta, nil
+	}
+	all, listErr := meta.ListAllBackupMeta()
+	if listErr != nil {
+		return nil, err
+	}
+	for _, b := range all {
+		if b.Name == backupID || b.StorageKey == backupID {
+			return b, nil
+		}
+	}
+	return nil, fmt.Errorf("backup not found: %s", backupID)
 }
 
 func (s *Service) connParams() engine.ConnParams {
