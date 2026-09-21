@@ -9,56 +9,47 @@ import (
 
 const _BOLT_DB_MODE = 0600
 
-var (
-	db     *bolt.DB
-	dbPath = "./go-vault.db"
-	mu     sync.Mutex
-)
-
-// SetPath configures the BoltDB file path. Must be called before Connect.
-func SetPath(path string) {
-	mu.Lock()
-	defer mu.Unlock()
-	if path != "" {
-		dbPath = path
-	}
+// Client is an instance-scoped BoltDB wrapper.
+type Client struct {
+	db   *bolt.DB
+	path string
+	mu   sync.Mutex
 }
 
-func Connect() error {
-	mu.Lock()
-	defer mu.Unlock()
-	conn, err := bolt.Open(dbPath, _BOLT_DB_MODE, nil)
+// New opens a BoltDB file at path and returns a Client.
+func New(path string) (*Client, error) {
+	if path == "" {
+		path = "./go-vault.db"
+	}
+	conn, err := bolt.Open(path, _BOLT_DB_MODE, nil)
 	if err != nil {
-		return fmt.Errorf("open boltdb %s: %w", dbPath, err)
+		return nil, fmt.Errorf("open boltdb %s: %w", path, err)
 	}
-	db = conn
-	return nil
+	return &Client{db: conn, path: path}, nil
 }
 
-func Disconnect() error {
-	mu.Lock()
-	defer mu.Unlock()
-	if db == nil {
+// Close closes the underlying BoltDB connection.
+func (c *Client) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.db == nil {
 		return nil
 	}
-	err := db.Close()
-	db = nil
+	err := c.db.Close()
+	c.db = nil
 	return err
 }
 
-func GetDB() *bolt.DB {
-	return db
-}
-
-func CreateBucket(bucket string) error {
-	return db.Update(func(tx *bolt.Tx) error {
+// CreateBucket creates a bucket if it does not exist.
+func (c *Client) CreateBucket(bucket string) error {
+	return c.db.Update(func(tx *bolt.Tx) error {
 		_, err := tx.CreateBucketIfNotExists([]byte(bucket))
 		return err
 	})
 }
 
-func Save(bucket, key string, value []byte) error {
-	return db.Update(func(tx *bolt.Tx) error {
+func (c *Client) Save(bucket, key string, value []byte) error {
+	return c.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(bucket))
 		if b == nil {
 			return fmt.Errorf("bucket %s not found", bucket)
@@ -67,9 +58,9 @@ func Save(bucket, key string, value []byte) error {
 	})
 }
 
-func Get(bucket, key string) ([]byte, error) {
+func (c *Client) Get(bucket, key string) ([]byte, error) {
 	var value []byte
-	err := db.View(func(tx *bolt.Tx) error {
+	err := c.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(bucket))
 		if b == nil {
 			return fmt.Errorf("bucket %s not found", bucket)
@@ -84,16 +75,16 @@ func Get(bucket, key string) ([]byte, error) {
 }
 
 // List returns values in key order (oldest first for time-sortable keys).
-func List(bucket string, size, offset int) ([][]byte, error) {
+func (c *Client) List(bucket string, size, offset int) ([][]byte, error) {
 	var values [][]byte
-	err := db.View(func(tx *bolt.Tx) error {
+	err := c.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(bucket))
 		if b == nil {
 			return fmt.Errorf("bucket %s not found", bucket)
 		}
-		c := b.Cursor()
+		cur := b.Cursor()
 		i := 0
-		for k, v := c.First(); k != nil; k, v = c.Next() {
+		for k, v := cur.First(); k != nil; k, v = cur.Next() {
 			if i >= offset {
 				values = append(values, append([]byte(nil), v...))
 				if size > 0 && len(values) == size {
@@ -108,16 +99,16 @@ func List(bucket string, size, offset int) ([][]byte, error) {
 }
 
 // ListReverse returns values newest-first for time-sortable keys.
-func ListReverse(bucket string, size, offset int) ([][]byte, error) {
+func (c *Client) ListReverse(bucket string, size, offset int) ([][]byte, error) {
 	var values [][]byte
-	err := db.View(func(tx *bolt.Tx) error {
+	err := c.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(bucket))
 		if b == nil {
 			return fmt.Errorf("bucket %s not found", bucket)
 		}
-		c := b.Cursor()
+		cur := b.Cursor()
 		i := 0
-		for k, v := c.Last(); k != nil; k, v = c.Prev() {
+		for k, v := cur.Last(); k != nil; k, v = cur.Prev() {
 			if i >= offset {
 				values = append(values, append([]byte(nil), v...))
 				if size > 0 && len(values) == size {
@@ -132,12 +123,12 @@ func ListReverse(bucket string, size, offset int) ([][]byte, error) {
 }
 
 // ListAll returns every value in key order.
-func ListAll(bucket string) ([][]byte, error) {
-	return List(bucket, 0, 0)
+func (c *Client) ListAll(bucket string) ([][]byte, error) {
+	return c.List(bucket, 0, 0)
 }
 
-func Delete(bucket, key string) error {
-	return db.Update(func(tx *bolt.Tx) error {
+func (c *Client) Delete(bucket, key string) error {
+	return c.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(bucket))
 		if b == nil {
 			return fmt.Errorf("bucket %s not found", bucket)

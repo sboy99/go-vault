@@ -9,7 +9,6 @@ import (
 
 	"github.com/sboy99/go-vault/internal/meta"
 	"github.com/sboy99/go-vault/internal/utils"
-	"github.com/sboy99/go-vault/pkg/boltdb"
 )
 
 type Status string
@@ -109,7 +108,7 @@ func (r *Runner) Cancel() {
 }
 
 func Get(id string) (*Job, error) {
-	data, err := boltdb.Get(meta.BucketJob(), id)
+	data, err := meta.DB().Get(meta.BucketJob(), id)
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +123,7 @@ func Get(id string) (*Job, error) {
 }
 
 func List(limit, offset int) ([]*Job, error) {
-	rows, err := boltdb.List(meta.BucketJob(), limit, offset)
+	rows, err := meta.DB().List(meta.BucketJob(), limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -148,5 +147,5 @@ func saveJob(j *Job) error {
 	if err != nil {
 		return err
 	}
-	return boltdb.Save(meta.BucketJob(), j.ID, data)
+	return meta.DB().Save(meta.BucketJob(), j.ID, data)
 }

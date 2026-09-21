@@ -7,7 +7,6 @@ import (
 
 	"github.com/sboy99/go-vault/internal/config"
 	"github.com/sboy99/go-vault/internal/utils"
-	"github.com/sboy99/go-vault/pkg/boltdb"
 )
 
 type BackupStatus string
@@ -62,7 +61,7 @@ func (b *BackupMeta) Save() error {
 	if err != nil {
 		return err
 	}
-	return boltdb.Save(_BACKUP_META, b.BackupId, data)
+	return DB().Save(_BACKUP_META, b.BackupId, data)
 }
 
 func (b *BackupMeta) MarkSuccess(size int64, sha, pgVersion string, verified bool) error {
@@ -86,7 +85,7 @@ func (b *BackupMeta) MarkFailed(errMsg string) error {
 }
 
 func GetBackupMeta(id string) (*BackupMeta, error) {
-	data, err := boltdb.Get(_BACKUP_META, id)
+	data, err := DB().Get(_BACKUP_META, id)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +100,7 @@ func GetBackupMeta(id string) (*BackupMeta, error) {
 }
 
 func ListBackupMeta(size, offset int) ([]*BackupMeta, error) {
-	rows, err := boltdb.ListReverse(_BACKUP_META, size, offset)
+	rows, err := DB().ListReverse(_BACKUP_META, size, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +108,7 @@ func ListBackupMeta(size, offset int) ([]*BackupMeta, error) {
 }
 
 func ListAllBackupMeta() ([]*BackupMeta, error) {
-	rows, err := boltdb.ListAll(_BACKUP_META)
+	rows, err := DB().ListAll(_BACKUP_META)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +116,7 @@ func ListAllBackupMeta() ([]*BackupMeta, error) {
 }
 
 func DeleteBackupMeta(id string) error {
-	return boltdb.Delete(_BACKUP_META, id)
+	return DB().Delete(_BACKUP_META, id)
 }
 
 func decodeBackupList(rows [][]byte) ([]*BackupMeta, error) {
