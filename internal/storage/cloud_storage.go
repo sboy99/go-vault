@@ -133,36 +133,3 @@ func (a *AWSCloudStorage) List(ctx context.Context, prefix string) ([]ObjectInfo
 	}
 	return out, nil
 }
-
-type CloudStorage struct {
-	inner IStorage
-}
-
-func NewCloudStorage(cfg *config.Config) (*CloudStorage, error) {
-	switch cfg.Storage.Cloud.Type {
-	case config.AWS:
-		awsStore, err := NewAWSCloudStorage(cfg)
-		if err != nil {
-			return nil, err
-		}
-		return &CloudStorage{inner: awsStore}, nil
-	default:
-		return nil, fmt.Errorf("unsupported cloud type %q", cfg.Storage.Cloud.Type)
-	}
-}
-
-func (c *CloudStorage) Save(ctx context.Context, key string, r io.Reader) (ObjectInfo, error) {
-	return c.inner.Save(ctx, key, r)
-}
-
-func (c *CloudStorage) Open(ctx context.Context, key string) (io.ReadCloser, error) {
-	return c.inner.Open(ctx, key)
-}
-
-func (c *CloudStorage) Delete(ctx context.Context, key string) error {
-	return c.inner.Delete(ctx, key)
-}
-
-func (c *CloudStorage) List(ctx context.Context, prefix string) ([]ObjectInfo, error) {
-	return c.inner.List(ctx, prefix)
-}

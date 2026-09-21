@@ -17,55 +17,26 @@ type ObjectInfo struct {
 	LastModified time.Time
 }
 
-// IStorage is a streaming storage backend.
-type IStorage interface {
+// Backend is a streaming storage backend.
+type Backend interface {
 	Save(ctx context.Context, key string, r io.Reader) (ObjectInfo, error)
 	Open(ctx context.Context, key string) (io.ReadCloser, error)
 	Delete(ctx context.Context, key string) error
 	List(ctx context.Context, prefix string) ([]ObjectInfo, error)
 }
 
-type Storage struct {
-	storageMap map[config.StorageEnum]IStorage
-	typ        config.StorageEnum
-}
-
-func NewStorage(cfg *config.Config) (*Storage, error) {
-	s := &Storage{
-		typ:        cfg.Storage.Type,
-		storageMap: map[config.StorageEnum]IStorage{},
-	}
+func NewStorage(cfg *config.Config) (Backend, error) {
 	switch cfg.Storage.Type {
 	case config.LOCAL:
-		s.storageMap[config.LOCAL] = NewLocalStorage(cfg.Storage.Dest)
+		return NewLocalStorage(cfg.Storage.Dest), nil
 	case config.CLOUD:
-		cloud, err := NewCloudStorage(cfg)
-		if err != nil {
-			return nil, err
+		switch cfg.Storage.Cloud.Type {
+		case config.AWS:
+			return NewAWSCloudStorage(cfg)
+		default:
+			return nil, fmt.Errorf("unsupported cloud type %q", cfg.Storage.Cloud.Type)
 		}
-		s.storageMap[config.CLOUD] = cloud
 	default:
 		return nil, fmt.Errorf("unsupported storage type %q", cfg.Storage.Type)
 	}
-	return s, nil
-}
-
-func (s *Storage) Save(ctx context.Context, key string, r io.Reader) (ObjectInfo, error) {
-	return s.backend().Save(ctx, key, r)
-}
-
-func (s *Storage) Open(ctx context.Context, key string) (io.ReadCloser, error) {
-	return s.backend().Open(ctx, key)
-}
-
-func (s *Storage) Delete(ctx context.Context, key string) error {
-	return s.backend().Delete(ctx, key)
-}
-
-func (s *Storage) List(ctx context.Context, prefix string) ([]ObjectInfo, error) {
-	return s.backend().List(ctx, prefix)
-}
-
-func (s *Storage) backend() IStorage {
-	return s.storageMap[s.typ]
 }

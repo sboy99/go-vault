@@ -22,11 +22,11 @@ import (
 // Service orchestrates dump, store, verify, restore, and prune.
 type Service struct {
 	cfg    *config.Config
-	store  *storage.Storage
+	store  storage.Backend
 	engine *engine.PostgresEngine
 }
 
-func NewService(cfg *config.Config, store *storage.Storage) *Service {
+func NewService(cfg *config.Config, store storage.Backend) *Service {
 	return &Service{
 		cfg:    cfg,
 		store:  store,
