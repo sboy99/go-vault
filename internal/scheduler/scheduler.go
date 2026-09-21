@@ -50,6 +50,15 @@ func (s *Scheduler) Start() error {
 	return nil
 }
 
+// NextRun returns the next scheduled fire time, or zero if unknown.
+func (s *Scheduler) NextRun() time.Time {
+	if s == nil || s.cron == nil {
+		return time.Time{}
+	}
+	entry := s.cron.Entry(s.entryID)
+	return entry.Next
+}
+
 func (s *Scheduler) Stop(ctx context.Context) {
 	stopCtx := s.cron.Stop()
 	select {
