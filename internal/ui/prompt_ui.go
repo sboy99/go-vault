@@ -121,3 +121,7 @@ func DisplayInputAWSAccessKeySecretPrompt() (string, error) {
 func DisplayInputAWSEndpointPrompt() (string, error) {
 	return inputPrompt("Enter AWS Endpoint", "default", 0)
 }
+
+func DisplayRestoreConfirmPrompt() (string, error) {
+	return inputPrompt("Type the database name to confirm restore", "", 0)
+}
