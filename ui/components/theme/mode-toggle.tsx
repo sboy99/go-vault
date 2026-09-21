@@ -12,7 +12,7 @@ import {
 
 function readStoredMode(): ColorMode {
   const fromDom = document.documentElement.dataset.theme;
-  if (isColorMode(fromDom ?? "")) return fromDom;
+  if (fromDom && isColorMode(fromDom)) return fromDom;
   const stored = localStorage.getItem(MODE_STORAGE_KEY);
   if (stored && isColorMode(stored)) return stored;
   return DEFAULT_MODE;

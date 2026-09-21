@@ -1,0 +1,23 @@
+# Local / CI artifacts — never needed in the image build context.
+.git
+.gitignore
+**/.DS_Store
+
+# UI install and build output (rebuilt inside the ui stage).
+ui/node_modules
+ui/.next
+ui/.env
+ui/.env.local
+ui/.env.*.local
+
+# Go / test artifacts.
+bin
+coverage
+*.test
+*.out
+
+# Editor / docs noise.
+.idea
+.vscode
+*.md
+!README.md
