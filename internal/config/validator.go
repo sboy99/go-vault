@@ -5,12 +5,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sboy99/go-vault/internal/version"
 	"github.com/spf13/viper"
 )
 
 func setDefaults() {
 	viper.SetDefault("app.name", "go-vault")
-	viper.SetDefault("app.version", "0.1.0")
+	viper.SetDefault("app.version", version.Version)
 
 	viper.SetDefault("db.type", string(POSTGRESQL))
 	viper.SetDefault("db.port", 5432)

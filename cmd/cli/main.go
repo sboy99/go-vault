@@ -49,7 +49,7 @@ func needsConfig() bool {
 		return false
 	}
 	switch os.Args[1] {
-	case "setup", "help", "completion", "--help", "-h":
+	case "setup", "help", "completion", "--help", "-h", "--version", "-v":
 		return false
 	default:
 		return true

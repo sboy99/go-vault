@@ -8,6 +8,7 @@ import (
 	"github.com/sboy99/go-vault/internal/domain"
 	"github.com/sboy99/go-vault/internal/ui"
 	"github.com/sboy99/go-vault/internal/utils"
+	"github.com/sboy99/go-vault/internal/version"
 	"github.com/sboy99/go-vault/pkg/logger"
 	"github.com/spf13/cobra"
 )
@@ -23,9 +24,10 @@ type Deps struct {
 // The serve command is intentionally omitted — that lives in cmd/server.
 func NewRootCommand(deps Deps) *cobra.Command {
 	root := &cobra.Command{
-		Use:   "go-vault",
-		Short: "Production PostgreSQL backup service powered by pg_dump",
-		Long:  "Schedule, store, list, and restore PostgreSQL backups using the official pg_dump/pg_restore binaries.",
+		Use:     "go-vault",
+		Short:   "Production PostgreSQL backup service powered by pg_dump",
+		Long:    "Schedule, store, list, and restore PostgreSQL backups using the official pg_dump/pg_restore binaries.",
+		Version: version.Version,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cmd.Help()
 		},

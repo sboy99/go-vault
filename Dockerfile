@@ -18,6 +18,12 @@
 FROM golang:1.25-bookworm AS build
 WORKDIR /src
 
+# Release tag stamped into binaries (overridden by docker build --build-arg VERSION=).
+ARG VERSION=0.1.0
+# Buildx sets these per target platform (linux/amd64, linux/arm64, …).
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+
 # Step 1.1: Copy module files first so dependency download is cached
 #           independently of source changes.
 COPY go.mod go.sum ./
@@ -28,15 +34,18 @@ RUN go mod download
 # Step 1.3: Copy the full source tree into the build context.
 COPY . .
 
-# Step 1.4: Cross-compile both binaries as static Linux amd64 artifacts.
+# Step 1.4: Compile both binaries as static Linux artifacts for the target arch.
 #           CGO_ENABLED=0       — no libc dependency (runs on slim Debian)
 #           -trimpath           — reproducible builds (no host paths in binary)
 #           -ldflags="-s -w"    — strip symbol/DWARF tables (smaller binary)
+#           -X …Version         — stamp release version into the CLI / app default
 #           Outputs land in /out for the runtime stage to copy.
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-    go build -trimpath -ldflags="-s -w" -o /out/go-vault ./cmd/cli && \
-    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-    go build -trimpath -ldflags="-s -w" -o /out/go-vault-server ./cmd/server
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+    go build -trimpath -ldflags="-s -w -X github.com/sboy99/go-vault/internal/version.Version=${VERSION}" \
+      -o /out/go-vault ./cmd/cli && \
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+    go build -trimpath -ldflags="-s -w -X github.com/sboy99/go-vault/internal/version.Version=${VERSION}" \
+      -o /out/go-vault-server ./cmd/server
 
 # =============================================================================
 # Stage 2 — UI build (discarded after copy; only standalone output is kept)
