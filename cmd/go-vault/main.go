@@ -3,8 +3,8 @@ package main
 import (
 	"os"
 
+	"github.com/sboy99/go-vault/internal/cli"
 	"github.com/sboy99/go-vault/internal/config"
-	"github.com/sboy99/go-vault/internal/cmd"
 	"github.com/sboy99/go-vault/internal/meta"
 	"github.com/sboy99/go-vault/pkg/logger"
 )
@@ -33,7 +33,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := cmd.Execute(); err != nil {
+	if err := cli.Execute(); err != nil {
 		logger.Error("%s", err.Error())
 		os.Exit(1)
 	}

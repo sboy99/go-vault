@@ -1,4 +1,4 @@
-package cmd
+package cli
 
 import (
 	"github.com/sboy99/go-vault/internal/meta"
