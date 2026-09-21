@@ -7,9 +7,8 @@ import (
 )
 
 const (
-	_BACKUP_META  = "backup_meta"
-	_RESTORE_META = "restore_meta"
-	_JOB_META     = "job_meta"
+	_BACKUP_META = "backup_meta"
+	_JOB_META    = "job_meta"
 )
 
 func Init(metaDBPath string) error {
@@ -19,7 +18,7 @@ func Init(metaDBPath string) error {
 	if err := boltdb.Connect(); err != nil {
 		return err
 	}
-	buckets := []string{_BACKUP_META, _RESTORE_META, _JOB_META}
+	buckets := []string{_BACKUP_META, _JOB_META}
 	return createBucketsIfNotExists(buckets)
 }
 

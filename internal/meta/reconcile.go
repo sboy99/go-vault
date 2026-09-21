@@ -10,15 +10,6 @@ import (
 	"github.com/sboy99/go-vault/pkg/logger"
 )
 
-// StorageLister lists stored backup keys for reconcile.
-type StorageLister interface {
-	List(ctx context.Context, prefix string) ([]struct {
-		Key          string
-		Size         int64
-		LastModified time.Time
-	}, error)
-}
-
 // ObjectRef is a minimal storage object for reconcile.
 type ObjectRef struct {
 	Key          string

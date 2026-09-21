@@ -25,7 +25,6 @@ type Type string
 const (
 	TypeBackup  Type = "backup"
 	TypeRestore Type = "restore"
-	TypePrune   Type = "prune"
 )
 
 type Job struct {

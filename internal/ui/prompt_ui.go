@@ -10,7 +10,7 @@ func DisplaySelectDatabaseTypePrompt() (config.DatabaseEnum, error) {
 	// Prompt for DB selection //
 	prompt := promptui.Select{
 		Label: "Select DB",
-		Items: []config.DatabaseEnum{config.POSTGRESQL, config.MYSQL, config.MONGODB},
+		Items: []config.DatabaseEnum{config.POSTGRESQL},
 	}
 	// Run the prompt //
 	_, result, err := prompt.Run()
@@ -112,7 +112,7 @@ func DisplaySelectCloudTypePrompt() (config.CloudEnum, error) {
 	// Prompt for Cloud selection //
 	prompt := promptui.Select{
 		Label: "Select Cloud",
-		Items: []config.CloudEnum{config.AWS, config.GCP},
+		Items: []config.CloudEnum{config.AWS},
 	}
 	// Run the prompt //
 	_, result, err := prompt.Run()
