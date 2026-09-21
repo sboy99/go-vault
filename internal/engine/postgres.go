@@ -48,8 +48,7 @@ func NewPostgresEngine() *PostgresEngine {
 	}
 }
 
-// Dump streams a custom-format dump to w. Caller must consume the reader fully.
-// Prefer DumpTo for typical use.
+// DumpTo streams a custom-format dump to w.
 func (e *PostgresEngine) DumpTo(ctx context.Context, p ConnParams, w io.Writer) (*DumpResult, error) {
 	major, version, err := e.serverMajor(ctx, p)
 	if err != nil {
@@ -94,15 +93,8 @@ func (e *PostgresEngine) DumpTo(ctx context.Context, p ConnParams, w io.Writer) 
 		done <- waitErr
 	}()
 
-	select {
-	case <-ctx.Done():
-		killProcessGroup(cmd)
-		<-done
-		return nil, fmt.Errorf("pg_dump cancelled: %w", ctx.Err())
-	case err := <-done:
-		if err != nil {
-			return nil, fmt.Errorf("pg_dump failed: %w\nstderr: %s", err, stderr.String())
-		}
+	if err := waitOrKill(ctx, cmd, done, "pg_dump", stderr); err != nil {
+		return nil, err
 	}
 
 	return &DumpResult{
@@ -170,17 +162,7 @@ func (e *PostgresEngine) Restore(ctx context.Context, p ConnParams, dumpPath str
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
 
-	select {
-	case <-ctx.Done():
-		killProcessGroup(cmd)
-		<-done
-		return fmt.Errorf("pg_restore cancelled: %w", ctx.Err())
-	case err := <-done:
-		if err != nil {
-			return fmt.Errorf("pg_restore failed: %w\nstderr: %s", err, stderr.String())
-		}
-	}
-	return nil
+	return waitOrKill(ctx, cmd, done, "pg_restore", stderr)
 }
 
 // ServerVersion returns the remote PostgreSQL version string and major number.
@@ -217,8 +199,12 @@ func (e *PostgresEngine) serverMajor(ctx context.Context, p ConnParams) (int, st
 }
 
 func (e *PostgresEngine) resolveBinary(name string, serverMajor int) (string, error) {
-	// Prefer a client major >= server major.
-	candidates := []string{}
+	candidates := e.collectCandidates(name, serverMajor)
+	return pickBest(name, serverMajor, candidates)
+}
+
+func (e *PostgresEngine) collectCandidates(name string, serverMajor int) []string {
+	var candidates []string
 	for _, root := range e.BinRoots {
 		if root == "/usr/bin" {
 			candidates = append(candidates, filepath.Join(root, name))
@@ -241,14 +227,18 @@ func (e *PostgresEngine) resolveBinary(name string, serverMajor int) (string, er
 			}
 		}
 	}
-	// Also try PATH.
 	if p, err := exec.LookPath(name); err == nil {
 		candidates = append(candidates, p)
 	}
+	return candidates
+}
 
+func pickBest(name string, serverMajor int, candidates []string) (string, error) {
 	var lastErr error
 	bestPath := ""
 	bestMajor := -1
+	fallback := ""
+
 	for _, path := range candidates {
 		info, err := os.Stat(path)
 		if err != nil || info.IsDir() {
@@ -259,15 +249,19 @@ func (e *PostgresEngine) resolveBinary(name string, serverMajor int) (string, er
 		if maj >= serverMajor && maj > bestMajor {
 			bestMajor = maj
 			bestPath = path
-		} else if bestPath == "" && maj == 0 {
-			// Unknown major from PATH; accept as last resort after loop.
-			if bestPath == "" {
-				bestPath = path
-			}
+			continue
+		}
+		// Unknown major (e.g. PATH binary); keep as last-resort fallback.
+		if maj == 0 && fallback == "" {
+			fallback = path
 		}
 	}
+
 	if bestPath != "" {
 		return bestPath, nil
+	}
+	if fallback != "" {
+		return fallback, nil
 	}
 	if lastErr != nil {
 		return "", fmt.Errorf("no compatible %s for server major %d: %w", name, serverMajor, lastErr)
@@ -275,8 +269,21 @@ func (e *PostgresEngine) resolveBinary(name string, serverMajor int) (string, er
 	return "", fmt.Errorf("no compatible %s found for server major %d (install postgresql-client-%d or newer)", name, serverMajor, serverMajor)
 }
 
+func waitOrKill(ctx context.Context, cmd *exec.Cmd, done <-chan error, name string, stderr *boundedBuffer) error {
+	select {
+	case <-ctx.Done():
+		killProcessGroup(cmd)
+		<-done
+		return fmt.Errorf("%s cancelled: %w", name, ctx.Err())
+	case err := <-done:
+		if err != nil {
+			return fmt.Errorf("%s failed: %w\nstderr: %s", name, err, stderr.String())
+		}
+		return nil
+	}
+}
+
 func binaryMajor(path string) int {
-	// Path like /usr/lib/postgresql/16/bin/pg_dump
 	parts := strings.Split(path, string(os.PathSeparator))
 	for i, p := range parts {
 		if p == "postgresql" || p == "pgsql" {
