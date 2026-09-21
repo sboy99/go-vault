@@ -23,94 +23,81 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func rootCmdHandler(cmd *cobra.Command, args []string) {
-	_ = cmd.Help()
+func rootCmdHandler(cmd *cobra.Command, args []string) error {
+	return cmd.Help()
 }
 
-func setupCmdHandler(cmd *cobra.Command, args []string) {
+func setupCmdHandler(cmd *cobra.Command, args []string) error {
 	config.LoadOptional()
-	if err := setup.NewConfigService().SetupConfig(); err != nil {
-		logger.Error("%v", err)
-	}
+	return setup.NewConfigService().SetupConfig()
 }
 
-func backupCmdHandler(cmd *cobra.Command, args []string) {
-	_ = cmd.Help()
+func backupCmdHandler(cmd *cobra.Command, args []string) error {
+	return cmd.Help()
 }
 
-func createBackupCmdHandler(cmd *cobra.Command, args []string) {
+func createBackupCmdHandler(cmd *cobra.Command, args []string) error {
 	svc, err := newBackupService()
 	if err != nil {
-		logger.Error("%v", err)
-		return
+		return err
 	}
-	b, err := svc.CreateBackup(context.Background())
+	b, err := svc.BackupAndPrune(context.Background())
 	if err != nil {
-		logger.Error("backup failed: %v", err)
-		return
+		return fmt.Errorf("backup failed: %w", err)
 	}
 	logger.Info("created backup %s (%s)", b.BackupId, b.Name)
+	return nil
 }
 
-func listBackupCmdHandler(cmd *cobra.Command, args []string) {
+func listBackupCmdHandler(cmd *cobra.Command, args []string) error {
 	svc, err := newBackupService()
 	if err != nil {
-		logger.Error("%v", err)
-		return
+		return err
 	}
 	list, err := svc.ListBackups(50, 0)
 	if err != nil {
-		logger.Error("list failed: %v", err)
-		return
+		return fmt.Errorf("list failed: %w", err)
 	}
 	headers, err := utils.GetStructFields(meta.BackupMeta{})
 	if err != nil {
-		logger.Error("%v", err)
-		return
+		return err
 	}
 	rows := make([]interface{}, len(list))
 	for i, v := range list {
 		rows[i] = *v
 	}
-	if err := ui.RenderTable(headers, rows); err != nil {
-		logger.Error("%v", err)
-	}
+	return ui.RenderTable(headers, rows)
 }
 
-func restoreBackupCmdHandler(cmd *cobra.Command, args []string) {
+func restoreBackupCmdHandler(cmd *cobra.Command, args []string) error {
 	svc, err := newBackupService()
 	if err != nil {
-		logger.Error("%v", err)
-		return
+		return err
 	}
 	if err := svc.RestoreBackup(context.Background(), args[0]); err != nil {
-		logger.Error("restore failed: %v", err)
-		return
+		return fmt.Errorf("restore failed: %w", err)
 	}
 	logger.Info("restore complete")
+	return nil
 }
 
-func serveCmdHandler(cmd *cobra.Command, args []string) {
+func serveCmdHandler(cmd *cobra.Command, args []string) error {
 	cfg := config.GetConfig()
 	store, err := storage.NewStorage(cfg)
 	if err != nil {
-		logger.Fatal("%v", err)
+		return err
 	}
 	svc := backup.NewService(cfg, store)
 	runner := job.NewRunner()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	if err := svc.Reconcile(ctx); err != nil {
-		logger.Warn("reconcile: %v", err)
-	}
-	cancel()
+	reconcileOnStart(svc)
 
 	sched, err := scheduler.New(cfg, svc, runner)
 	if err != nil {
-		logger.Fatal("%v", err)
+		return err
 	}
 	if err := sched.Start(); err != nil {
-		logger.Fatal("%v", err)
+		return err
 	}
 
 	metrics.SetReady(true)
@@ -121,6 +108,19 @@ func serveCmdHandler(cmd *cobra.Command, args []string) {
 		errCh <- server.Start()
 	}()
 
+	waitForShutdown(errCh)
+	return shutdown(cfg, sched, runner, server)
+}
+
+func reconcileOnStart(svc *backup.Service) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := svc.Reconcile(ctx); err != nil {
+		logger.Warn("reconcile: %v", err)
+	}
+}
+
+func waitForShutdown(errCh <-chan error) {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
@@ -132,13 +132,15 @@ func serveCmdHandler(cmd *cobra.Command, args []string) {
 			logger.Error("api error: %v", err)
 		}
 	}
+}
 
+func shutdown(cfg *config.Config, sched *scheduler.Scheduler, runner *job.Runner, server *api.Server) error {
 	metrics.SetReady(false)
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.Runtime.ShutdownTimeout)
-	defer shutdownCancel()
-	sched.Stop(shutdownCtx)
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.Runtime.ShutdownTimeout)
+	defer cancel()
+	sched.Stop(ctx)
 	runner.Cancel()
-	_ = server.Shutdown(shutdownCtx)
+	return server.Shutdown(ctx)
 }
 
 func newBackupService() (*backup.Service, error) {

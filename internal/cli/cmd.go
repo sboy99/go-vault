@@ -8,37 +8,37 @@ var rootCmd = &cobra.Command{
 	Use:   "go-vault",
 	Short: "Production PostgreSQL backup service powered by pg_dump",
 	Long:  "Schedule, store, list, and restore PostgreSQL backups using the official pg_dump/pg_restore binaries.",
-	Run:   rootCmdHandler,
+	RunE:  rootCmdHandler,
 }
 
 var setupCmd = &cobra.Command{
 	Use:   "setup",
 	Short: "Interactive setup of database and storage config.",
-	Run:   setupCmdHandler,
+	RunE:  setupCmdHandler,
 }
 
 var serveCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "Run the backup scheduler and HTTP API.",
-	Run:   serveCmdHandler,
+	RunE:  serveCmdHandler,
 }
 
 var backupCmd = &cobra.Command{
 	Use:   "backup",
 	Short: "Manage backups of your database.",
-	Run:   backupCmdHandler,
+	RunE:  backupCmdHandler,
 }
 
 var createBackupCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Create a backup of your database.",
-	Run:   createBackupCmdHandler,
+	RunE:  createBackupCmdHandler,
 }
 
 var listBackupCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all backups of your database.",
-	Run:   listBackupCmdHandler,
+	RunE:  listBackupCmdHandler,
 }
 
 var restoreBackupCmd = &cobra.Command{
@@ -46,7 +46,7 @@ var restoreBackupCmd = &cobra.Command{
 	Short:             "Restore a backup of your database.",
 	Args:              cobra.ExactArgs(1),
 	ValidArgsFunction: restoreBackupValidArgs,
-	Run:               restoreBackupCmdHandler,
+	RunE:              restoreBackupCmdHandler,
 }
 
 func init() {
