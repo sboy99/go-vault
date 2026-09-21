@@ -1,6 +1,6 @@
 package ui
 
-import "github.com/sboy99/go-vault/config"
+import "github.com/sboy99/go-vault/internal/config"
 
 func getDatabasePort(dbType config.DatabaseEnum) string {
 	switch dbType {

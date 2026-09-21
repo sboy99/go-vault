@@ -8,18 +8,18 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/sboy99/go-vault/config"
 	"github.com/sboy99/go-vault/internal/api"
 	"github.com/sboy99/go-vault/internal/backup"
-	configsvc "github.com/sboy99/go-vault/internal/config"
+	"github.com/sboy99/go-vault/internal/config"
 	"github.com/sboy99/go-vault/internal/job"
 	"github.com/sboy99/go-vault/internal/meta"
 	"github.com/sboy99/go-vault/internal/metrics"
 	"github.com/sboy99/go-vault/internal/scheduler"
+	"github.com/sboy99/go-vault/internal/setup"
 	"github.com/sboy99/go-vault/internal/storage"
 	"github.com/sboy99/go-vault/internal/ui"
-	"github.com/sboy99/go-vault/pkg/logger"
 	"github.com/sboy99/go-vault/internal/utils"
+	"github.com/sboy99/go-vault/pkg/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -29,7 +29,7 @@ func rootCmdHandler(cmd *cobra.Command, args []string) {
 
 func setupCmdHandler(cmd *cobra.Command, args []string) {
 	config.LoadOptional()
-	configsvc.NewConfigService().SetupConfig()
+	setup.NewConfigService().SetupConfig()
 }
 
 func backupCmdHandler(cmd *cobra.Command, args []string) {

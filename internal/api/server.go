@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sboy99/go-vault/config"
+	"github.com/sboy99/go-vault/internal/config"
 	"github.com/sboy99/go-vault/internal/backup"
 	"github.com/sboy99/go-vault/internal/job"
 	"github.com/sboy99/go-vault/internal/metrics"

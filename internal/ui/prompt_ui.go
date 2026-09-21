@@ -2,7 +2,7 @@ package ui
 
 import (
 	"github.com/manifoldco/promptui"
-	"github.com/sboy99/go-vault/config"
+	"github.com/sboy99/go-vault/internal/config"
 	"github.com/sboy99/go-vault/internal/utils"
 )
 

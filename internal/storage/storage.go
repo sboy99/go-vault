@@ -6,7 +6,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/sboy99/go-vault/config"
+	"github.com/sboy99/go-vault/internal/config"
 )
 
 // ObjectInfo describes a stored backup artifact.

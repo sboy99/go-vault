@@ -29,8 +29,6 @@ type DatabaseEnum string
 
 const (
 	POSTGRESQL DatabaseEnum = "POSTGRESQL"
-	MYSQL      DatabaseEnum = "MYSQL"
-	MONGODB    DatabaseEnum = "MONGODB"
 )
 
 type Database struct {
@@ -59,7 +57,6 @@ type Storage struct {
 type CloudEnum string
 
 const (
-	GCP CloudEnum = "GCP"
 	AWS CloudEnum = "AWS"
 )
 

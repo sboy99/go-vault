@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/sboy99/go-vault/config"
+	"github.com/sboy99/go-vault/internal/config"
 	"github.com/sboy99/go-vault/internal/alert"
 	"github.com/sboy99/go-vault/internal/engine"
 	"github.com/sboy99/go-vault/internal/meta"

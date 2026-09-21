@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sboy99/go-vault/config"
+	"github.com/sboy99/go-vault/internal/config"
 	"github.com/sboy99/go-vault/pkg/logger"
 )
 

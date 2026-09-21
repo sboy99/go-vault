@@ -1,7 +1,7 @@
-package config
+package setup
 
 import (
-	"github.com/sboy99/go-vault/config"
+	"github.com/sboy99/go-vault/internal/config"
 	"github.com/sboy99/go-vault/internal/ui"
 	"github.com/sboy99/go-vault/pkg/logger"
 )
@@ -14,10 +14,8 @@ func NewConfigService() *ConfigService {
 
 // TODO: Return error
 func (c *ConfigService) SetupConfig() {
-	// Config //
 	cfg := config.GetConfig()
 
-	// Promt input //
 	dbType, err := ui.DisplaySelectDatabaseTypePrompt()
 	if err != nil {
 		logger.Error("Failed to display select db prompt\nDetails: %v", err)
