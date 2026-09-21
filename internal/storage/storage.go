@@ -17,15 +17,15 @@ type ObjectInfo struct {
 	LastModified time.Time
 }
 
-// Backend is a streaming storage backend.
-type Backend interface {
+// Storage is a streaming storage backend.
+type Storage interface {
 	Save(ctx context.Context, key string, r io.Reader) (ObjectInfo, error)
 	Open(ctx context.Context, key string) (io.ReadCloser, error)
 	Delete(ctx context.Context, key string) error
 	List(ctx context.Context, prefix string) ([]ObjectInfo, error)
 }
 
-func NewStorage(cfg *config.Config) (Backend, error) {
+func NewStorage(cfg *config.Config) (Storage, error) {
 	switch cfg.Storage.Type {
 	case config.LOCAL:
 		return NewLocalStorage(cfg.Storage.Dest), nil
