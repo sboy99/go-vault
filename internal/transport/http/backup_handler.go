@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"io"
+	"mime"
 	nethttp "net/http"
 	"strconv"
 
@@ -49,7 +50,11 @@ func (r *router) handleDownloadBackup(w nethttp.ResponseWriter, req *nethttp.Req
 	}
 	defer func() { _ = rc.Close() }()
 	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Header().Set("Content-Disposition", "attachment; filename=\""+b.Name+"\"")
+	cd := mime.FormatMediaType("attachment", map[string]string{"filename": b.Name})
+	if cd == "" {
+		cd = "attachment"
+	}
+	w.Header().Set("Content-Disposition", cd)
 	_, _ = io.Copy(w, rc)
 }
 

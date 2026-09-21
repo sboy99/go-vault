@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/sboy99/go-vault/internal/app"
+	"github.com/sboy99/go-vault/internal/config"
 	"github.com/sboy99/go-vault/internal/domain"
 	"github.com/sboy99/go-vault/internal/metrics"
 	"github.com/sboy99/go-vault/internal/repository/memory"
@@ -91,9 +92,42 @@ func newTestHandler(t *testing.T, token string) nethttp.Handler {
 	)
 	jobSvc := app.NewJobService(jobRepo)
 	metrics.SetReady(true)
+
+	cfg := &config.Config{
+		App: config.App{Name: "go-vault", Version: "test"},
+		DB: config.Database{
+			Name:     "app",
+			Type:     config.POSTGRESQL,
+			Host:     "localhost",
+			Port:     5432,
+			Username: "u",
+			Password: "super-secret-password",
+			SSLMode:  "disable",
+		},
+		Storage: config.Storage{
+			Type: config.LOCAL,
+			Dest: "/tmp/backups",
+			Cloud: config.CloudStorage{
+				Type: config.AWS,
+				AWS: config.AWSCloudStorage{
+					Region:          "us-east-1",
+					BucketName:      "vault",
+					AccessKeyId:     "AKIA...",
+					AccessKeySecret: "aws-secret-should-not-leak",
+					Endpoint:        "",
+				},
+			},
+		},
+		Schedule:  config.Schedule{Cron: "0 2 * * *", Timezone: "UTC"},
+		Retention: config.Retention{Daily: 7, Weekly: 4, Monthly: 12},
+		API:       config.API{Addr: ":8080", Token: "api-token-should-not-leak"},
+	}
+
 	return transporthttp.NewRouter(transporthttp.RouterDeps{
 		Backup:   backupSvc,
 		Jobs:     jobSvc,
+		Config:   cfg,
+		NextRun:  func() time.Time { return time.Date(2026, 9, 23, 2, 0, 0, 0, time.UTC) },
 		APIToken: token,
 	})
 }
@@ -163,5 +197,93 @@ func TestBearerAuthWhenConfigured(t *testing.T) {
 	h.ServeHTTP(rr2, req2)
 	if rr2.Code != nethttp.StatusOK {
 		t.Fatalf("expected 200, got %d body=%s", rr2.Code, rr2.Body.String())
+	}
+}
+
+func TestGetConfigRedactsSecrets(t *testing.T) {
+	h := newTestHandler(t, "")
+	req := httptest.NewRequest(nethttp.MethodGet, "/v1/config", nil)
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != nethttp.StatusOK {
+		t.Fatalf("status %d body=%s", rr.Code, rr.Body.String())
+	}
+	body := rr.Body.String()
+	for _, secret := range []string{
+		"super-secret-password",
+		"aws-secret-should-not-leak",
+		"api-token-should-not-leak",
+		"password",
+		"access_key_secret",
+		"token",
+	} {
+		if bytes.Contains(rr.Body.Bytes(), []byte(secret)) && secret != "password" && secret != "token" && secret != "access_key_secret" {
+			t.Fatalf("response leaked secret %q: %s", secret, body)
+		}
+	}
+	// Field names for secrets must not appear either.
+	for _, field := range []string{"\"password\"", "\"access_key_secret\"", "\"token\"", "\"access_key_id\""} {
+		if bytes.Contains(rr.Body.Bytes(), []byte(field)) {
+			t.Fatalf("response included secret field %s: %s", field, body)
+		}
+	}
+	var env struct {
+		Success bool `json:"success"`
+		Data    struct {
+			DB struct {
+				Name string `json:"name"`
+			} `json:"db"`
+			Schedule struct {
+				Cron string `json:"cron"`
+			} `json:"schedule"`
+			Retention struct {
+				Daily int `json:"daily"`
+			} `json:"retention"`
+			NextRun *time.Time `json:"next_run"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &env); err != nil {
+		t.Fatal(err)
+	}
+	if !env.Success || env.Data.DB.Name != "app" || env.Data.Schedule.Cron != "0 2 * * *" || env.Data.Retention.Daily != 7 {
+		t.Fatalf("unexpected config payload: %+v", env.Data)
+	}
+	if env.Data.NextRun == nil {
+		t.Fatal("expected next_run")
+	}
+}
+
+func TestGetStatsAndRetention(t *testing.T) {
+	h := newTestHandler(t, "")
+
+	req := httptest.NewRequest(nethttp.MethodGet, "/v1/stats", nil)
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != nethttp.StatusOK {
+		t.Fatalf("stats status %d body=%s", rr.Code, rr.Body.String())
+	}
+	var statsEnv map[string]interface{}
+	if err := json.Unmarshal(rr.Body.Bytes(), &statsEnv); err != nil {
+		t.Fatal(err)
+	}
+	if statsEnv["success"] != true {
+		t.Fatalf("stats envelope: %v", statsEnv)
+	}
+	data, ok := statsEnv["data"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("missing data: %v", statsEnv)
+	}
+	if _, ok := data["job_running"]; !ok {
+		t.Fatalf("missing job_running: %v", data)
+	}
+	if _, ok := data["backups"]; !ok {
+		t.Fatalf("missing backups: %v", data)
+	}
+
+	req2 := httptest.NewRequest(nethttp.MethodGet, "/v1/retention", nil)
+	rr2 := httptest.NewRecorder()
+	h.ServeHTTP(rr2, req2)
+	if rr2.Code != nethttp.StatusOK {
+		t.Fatalf("retention status %d body=%s", rr2.Code, rr2.Body.String())
 	}
 }

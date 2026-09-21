@@ -52,6 +52,8 @@ func main() {
 	handler := transporthttp.NewRouter(transporthttp.RouterDeps{
 		Backup:   c.Backup,
 		Jobs:     c.Jobs,
+		Config:   cfg,
+		NextRun:  sched.NextRun,
 		APIToken: cfg.API.Token,
 	})
 	server := &http.Server{

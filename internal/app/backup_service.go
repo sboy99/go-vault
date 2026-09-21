@@ -236,6 +236,74 @@ func (s *BackupService) ValidateRestoreConfirm(confirm string) error {
 	return nil
 }
 
+// Stats aggregates backup metadata for the dashboard.
+func (s *BackupService) Stats(ctx context.Context) (*domain.BackupStats, error) {
+	all, err := s.backups.FindAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	stats := &domain.BackupStats{
+		TotalCount:  len(all),
+		DailySeries: make([]domain.DailyBackupPoint, 0, 30),
+	}
+
+	now := time.Now().UTC()
+	dayBuckets := map[string]*domain.DailyBackupPoint{}
+	for i := 29; i >= 0; i-- {
+		day := now.AddDate(0, 0, -i).Format("2006-01-02")
+		dayBuckets[day] = &domain.DailyBackupPoint{Date: day}
+	}
+
+	for _, b := range all {
+		switch b.Status {
+		case domain.StatusSuccess:
+			stats.SuccessCount++
+			stats.TotalSizeBytes += b.SizeBytes
+			if stats.LastSuccessAt == nil || b.CreatedAt.After(*stats.LastSuccessAt) {
+				t := b.CreatedAt
+				stats.LastSuccessAt = &t
+				stats.LastSuccessID = b.BackupId
+			}
+		case domain.StatusFailed:
+			stats.FailedCount++
+			if stats.LastFailureAt == nil || b.CreatedAt.After(*stats.LastFailureAt) {
+				t := b.CreatedAt
+				stats.LastFailureAt = &t
+				stats.LastFailureID = b.BackupId
+			}
+		case domain.StatusRunning:
+			stats.RunningCount++
+		}
+
+		day := b.CreatedAt.UTC().Format("2006-01-02")
+		if bucket, ok := dayBuckets[day]; ok && b.Status == domain.StatusSuccess {
+			bucket.SizeBytes += b.SizeBytes
+			bucket.Count++
+		}
+	}
+
+	for i := 29; i >= 0; i-- {
+		day := now.AddDate(0, 0, -i).Format("2006-01-02")
+		stats.DailySeries = append(stats.DailySeries, *dayBuckets[day])
+	}
+	return stats, nil
+}
+
+// RetentionPreview returns the keep/prune split for the configured GFS policy.
+func (s *BackupService) RetentionPreview(ctx context.Context) (*domain.RetentionPreview, error) {
+	all, err := s.backups.FindAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+	flat := make([]domain.Backup, 0, len(all))
+	for _, b := range all {
+		flat = append(flat, *b)
+	}
+	keep, prune := domain.Select(flat, s.cfg.Retention, time.Now().UTC(), s.cfg.Location)
+	return &domain.RetentionPreview{Keep: keep, Prune: prune}, nil
+}
+
 func (s *BackupService) startBackup(ctx context.Context) (*domain.Backup, error) {
 	filename := buildFileName(s.cfg.DBName)
 	backup := domain.NewBackup(filename, s.cfg.DatabaseType, s.cfg.StorageType)
