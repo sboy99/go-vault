@@ -6,7 +6,9 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-    go build -trimpath -ldflags="-s -w" -o /out/go-vault ./cmd/go-vault
+    go build -trimpath -ldflags="-s -w" -o /out/go-vault ./cmd/cli && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -trimpath -ldflags="-s -w" -o /out/go-vault-server ./cmd/server
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -26,6 +28,7 @@ RUN useradd -r -u 10001 -m -d /home/govault govault \
     && chown -R govault:govault /data /tmp/go-vault
 
 COPY --from=build /out/go-vault /usr/local/bin/go-vault
+COPY --from=build /out/go-vault-server /usr/local/bin/go-vault-server
 
 USER govault
 WORKDIR /data
@@ -49,4 +52,4 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD curl -fsS http://127.0.0.1:8080/healthz || exit 1
 
-CMD ["go-vault", "serve"]
+CMD ["go-vault-server"]
