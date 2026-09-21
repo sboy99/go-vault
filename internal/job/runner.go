@@ -8,7 +8,7 @@ import (
 
 	"github.com/sboy99/go-vault/internal/meta"
 	"github.com/sboy99/go-vault/pkg/boltdb"
-	"github.com/sboy99/go-vault/pkg/utils"
+	"github.com/sboy99/go-vault/internal/utils"
 )
 
 type Status string

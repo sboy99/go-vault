@@ -16,7 +16,7 @@ import (
 	"github.com/sboy99/go-vault/internal/retention"
 	"github.com/sboy99/go-vault/internal/storage"
 	"github.com/sboy99/go-vault/pkg/logger"
-	"github.com/sboy99/go-vault/pkg/utils"
+	"github.com/sboy99/go-vault/internal/utils"
 )
 
 // Service orchestrates dump, store, verify, restore, and prune.

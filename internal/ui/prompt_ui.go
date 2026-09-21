@@ -3,7 +3,7 @@ package ui
 import (
 	"github.com/manifoldco/promptui"
 	"github.com/sboy99/go-vault/config"
-	"github.com/sboy99/go-vault/pkg/utils"
+	"github.com/sboy99/go-vault/internal/utils"
 )
 
 func DisplaySelectDatabaseTypePrompt() (config.DatabaseEnum, error) {
