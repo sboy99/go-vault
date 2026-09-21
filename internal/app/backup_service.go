@@ -228,6 +228,14 @@ func (s *BackupService) Ping(ctx context.Context) error {
 	return err
 }
 
+// ValidateRestoreConfirm returns ErrRestoreConfirmMismatch when confirm does not match the DB name.
+func (s *BackupService) ValidateRestoreConfirm(confirm string) error {
+	if confirm != s.cfg.DBName {
+		return domain.ErrRestoreConfirmMismatch
+	}
+	return nil
+}
+
 func (s *BackupService) startBackup(ctx context.Context) (*domain.Backup, error) {
 	filename := buildFileName(s.cfg.DBName)
 	backup := domain.NewBackup(filename, s.cfg.DatabaseType, s.cfg.StorageType)
