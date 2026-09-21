@@ -141,6 +141,10 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=raw,value=latest
+          labels: |
+            org.opencontainers.image.title=go-vault
+            org.opencontainers.image.description=PostgreSQL backups with pg_dump, GFS retention, an HTTP API, and a web dashboard.
+            org.opencontainers.image.documentation=https://github.com/sboy99/go-vault#readme
 
       - name: Build and push
         id: build

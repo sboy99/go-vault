@@ -1,15 +1,23 @@
 # syntax=docker/dockerfile:1
 #
-# go-vault multi-stage image
-# --------------------------
-# Stage 1 (build):  compile the CLI and server binaries
-# Stage 2 (ui):     production Next.js standalone bundle
-# Stage 3 (runtime): slim Debian with pg clients + node + API/UI
+# go-vault — PostgreSQL backup image
+# ----------------------------------
+# Scheduled pg_dump / pg_restore, GFS retention, an HTTP API, and a web dashboard.
 #
-# Binaries / artifacts produced:
-#   go-vault        — CLI (setup, backup create|list|restore)
-#   go-vault-server — HTTP API + cron scheduler
-#   /opt/govault-ui — Next.js standalone dashboard (port 3000)
+#   docker pull sboy99/go-vault:latest
+#   API        http://<host>:8080     (go-vault-server, cron included)
+#   Dashboard  http://<host>:3000
+#
+# One-shot CLI (does not start the scheduler or the dashboard):
+#   docker run --rm sboy99/go-vault:latest go-vault backup list
+#
+# Stage 1 (build):   compile the CLI and server binaries
+# Stage 2 (ui):      production Next.js standalone bundle
+# Stage 3 (runtime): slim Debian with pg clients 15/16/17, API, and dashboard
+#
+#   go-vault         CLI (setup, backup create|list|restore)
+#   go-vault-server  HTTP API + cron scheduler
+#   /opt/govault-ui  Next.js dashboard (GO_VAULT_UI_PORT, default 3000)
 
 # =============================================================================
 # Stage 1 — Go build
@@ -69,6 +77,12 @@ RUN NODE_ENV=production npm run build
 # =============================================================================
 
 FROM debian:bookworm-slim
+
+LABEL org.opencontainers.image.title="go-vault" \
+      org.opencontainers.image.description="PostgreSQL backups with pg_dump, GFS retention, an HTTP API, and a web dashboard." \
+      org.opencontainers.image.source="https://github.com/sboy99/go-vault" \
+      org.opencontainers.image.url="https://github.com/sboy99/go-vault" \
+      org.opencontainers.image.documentation="https://github.com/sboy99/go-vault#readme"
 
 # Step 3.1: Install OS packages needed at runtime, then clean apt lists.
 #           - ca-certificates / curl / gnupg / lsb-release — TLS + PGDG repo setup
