@@ -55,8 +55,10 @@ make build
 ./bin/go-vault backup create
 ./bin/go-vault backup list
 ./bin/go-vault backup restore <backup_id_or_name>
-./bin/go-vault serve
+./bin/go-vault-server   # HTTP API + cron scheduler
 ```
+
+Two binaries share the same app services: `go-vault` (CLI) and `go-vault-server` (API + scheduler).
 
 ## HTTP API
 

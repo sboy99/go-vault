@@ -10,7 +10,11 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/sboy99/go-vault/internal/domain"
 )
+
+var _ domain.ArtifactStore = (*LocalStorage)(nil)
 
 type LocalStorage struct {
 	BasePath string
@@ -20,16 +24,16 @@ func NewLocalStorage(basePath string) *LocalStorage {
 	return &LocalStorage{BasePath: basePath}
 }
 
-func (ls *LocalStorage) Save(ctx context.Context, key string, r io.Reader) (ObjectInfo, error) {
+func (ls *LocalStorage) Save(ctx context.Context, key string, r io.Reader) (domain.ObjectInfo, error) {
 	if err := os.MkdirAll(ls.BasePath, 0o755); err != nil {
-		return ObjectInfo{}, fmt.Errorf("mkdir backups: %w", err)
+		return domain.ObjectInfo{}, fmt.Errorf("mkdir backups: %w", err)
 	}
 	finalPath := ls.filePath(key)
 	tmpPath := finalPath + ".tmp"
 
 	f, err := os.Create(tmpPath)
 	if err != nil {
-		return ObjectInfo{}, fmt.Errorf("create temp file: %w", err)
+		return domain.ObjectInfo{}, fmt.Errorf("create temp file: %w", err)
 	}
 
 	hasher := sha256.New()
@@ -39,18 +43,18 @@ func (ls *LocalStorage) Save(ctx context.Context, key string, r io.Reader) (Obje
 	closeErr := f.Close()
 	if copyErr != nil {
 		_ = os.Remove(tmpPath)
-		return ObjectInfo{}, fmt.Errorf("write backup: %w", copyErr)
+		return domain.ObjectInfo{}, fmt.Errorf("write backup: %w", copyErr)
 	}
 	if closeErr != nil {
 		_ = os.Remove(tmpPath)
-		return ObjectInfo{}, closeErr
+		return domain.ObjectInfo{}, closeErr
 	}
 	if err := os.Rename(tmpPath, finalPath); err != nil {
 		_ = os.Remove(tmpPath)
-		return ObjectInfo{}, fmt.Errorf("rename backup: %w", err)
+		return domain.ObjectInfo{}, fmt.Errorf("rename backup: %w", err)
 	}
 
-	return ObjectInfo{
+	return domain.ObjectInfo{
 		Key:          key,
 		Size:         n,
 		SHA256:       hex.EncodeToString(hasher.Sum(nil)),
@@ -74,7 +78,7 @@ func (ls *LocalStorage) Delete(ctx context.Context, key string) error {
 	return err
 }
 
-func (ls *LocalStorage) List(ctx context.Context, prefix string) ([]ObjectInfo, error) {
+func (ls *LocalStorage) List(ctx context.Context, prefix string) ([]domain.ObjectInfo, error) {
 	if err := os.MkdirAll(ls.BasePath, 0o755); err != nil {
 		return nil, err
 	}
@@ -82,7 +86,7 @@ func (ls *LocalStorage) List(ctx context.Context, prefix string) ([]ObjectInfo, 
 	if err != nil {
 		return nil, err
 	}
-	var out []ObjectInfo
+	var out []domain.ObjectInfo
 	for _, ent := range entries {
 		if ent.IsDir() {
 			continue
@@ -98,7 +102,7 @@ func (ls *LocalStorage) List(ctx context.Context, prefix string) ([]ObjectInfo, 
 		if err != nil {
 			continue
 		}
-		out = append(out, ObjectInfo{
+		out = append(out, domain.ObjectInfo{
 			Key:          name,
 			Size:         info.Size(),
 			LastModified: info.ModTime().UTC(),

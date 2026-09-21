@@ -12,6 +12,7 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
+	"github.com/sboy99/go-vault/internal/domain"
 	"github.com/sboy99/go-vault/internal/engine"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -47,7 +48,7 @@ func TestDumpDropRestore(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	params := engine.ConnParams{
+	params := domain.ConnParams{
 		Host:     host,
 		Port:     port.Int(),
 		Name:     "app",

@@ -1,0 +1,52 @@
+services:
+  postgres:
+    container_name: go-vault-postgres
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    volumes:
+      - go_vault_postgres_data:/var/lib/postgresql/data
+    networks:
+      - go_vault_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d app"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  go-vault:
+    container_name: go-vault
+    image: sboy99/go-vault:latest
+    environment:
+      GO_VAULT_DB_HOST: postgres
+      GO_VAULT_DB_PORT: "5432"
+      GO_VAULT_DB_NAME: postgres
+      GO_VAULT_DB_USERNAME: postgres
+      GO_VAULT_DB_PASSWORD: postgres
+      GO_VAULT_DB_TYPE: POSTGRESQL
+      GO_VAULT_RETENTION_DAILY: "7"
+      GO_VAULT_RETENTION_WEEKLY: "4"
+      GO_VAULT_RETENTION_MONTHLY: "12"
+      GO_VAULT_API_ADDR: ":8080"
+    volumes:
+      - go_vault_backups:/data/backups
+      - go_vault_meta:/data/meta
+    networks:
+      - go_vault_net
+    ports:
+      - "8080:8080"
+
+networks:
+  go_vault_net:
+    name: go_vault_net
+    driver: bridge
+
+volumes:
+  go_vault_postgres_data:
+    name: go_vault_postgres_data
+  go_vault_backups:
+    name: go_vault_backups
+  go_vault_meta:
+    name: go_vault_meta

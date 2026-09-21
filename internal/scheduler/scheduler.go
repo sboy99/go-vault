@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/robfig/cron/v3"
-	"github.com/sboy99/go-vault/config"
-	"github.com/sboy99/go-vault/internal/backup"
-	"github.com/sboy99/go-vault/internal/job"
+	"github.com/sboy99/go-vault/internal/app"
+	"github.com/sboy99/go-vault/internal/config"
+	"github.com/sboy99/go-vault/internal/domain"
 	"github.com/sboy99/go-vault/pkg/logger"
 )
 
@@ -16,30 +16,26 @@ import (
 type Scheduler struct {
 	cron    *cron.Cron
 	cfg     *config.Config
-	svc     *backup.Service
-	runner  *job.Runner
+	backup  *app.BackupService
+	jobs    *app.JobService
 	entryID cron.EntryID
 }
 
-func New(cfg *config.Config, svc *backup.Service, runner *job.Runner) (*Scheduler, error) {
+func New(cfg *config.Config, backup *app.BackupService, jobs *app.JobService) (*Scheduler, error) {
 	loc, err := time.LoadLocation(cfg.Schedule.Timezone)
 	if err != nil {
 		return nil, fmt.Errorf("load timezone %q: %w", cfg.Schedule.Timezone, err)
 	}
 	c := cron.New(cron.WithLocation(loc))
-	return &Scheduler{cron: c, cfg: cfg, svc: svc, runner: runner}, nil
+	return &Scheduler{cron: c, cfg: cfg, backup: backup, jobs: jobs}, nil
 }
 
 func (s *Scheduler) Start() error {
 	id, err := s.cron.AddFunc(s.cfg.Schedule.Cron, func() {
 		logger.Info("scheduled backup starting")
-		_, err := s.runner.TryStart(job.TypeBackup, "", func(ctx context.Context) error {
-			_, err := s.svc.CreateBackup(ctx)
-			if err != nil {
-				return err
-			}
-			_, pruneErr := s.svc.Prune(ctx)
-			return pruneErr
+		_, err := s.jobs.TryStart(domain.JobTypeBackup, "", func(ctx context.Context) error {
+			_, err := s.backup.BackupAndPrune(ctx)
+			return err
 		})
 		if err != nil {
 			logger.Warn("scheduled backup skipped: %v", err)

@@ -4,7 +4,7 @@ import (
 	"os"
 
 	"github.com/olekukonko/tablewriter"
-	"github.com/sboy99/go-vault/pkg/utils"
+	"github.com/sboy99/go-vault/internal/utils"
 )
 
 func RenderTable(headers []string, contents []interface{}) error {
