@@ -1,31 +1,14 @@
 package storage
 
 import (
-	"context"
 	"fmt"
-	"io"
-	"time"
 
 	"github.com/sboy99/go-vault/internal/config"
+	"github.com/sboy99/go-vault/internal/domain"
 )
 
-// ObjectInfo describes a stored backup artifact.
-type ObjectInfo struct {
-	Key          string
-	Size         int64
-	SHA256       string
-	LastModified time.Time
-}
-
-// Storage is a streaming storage backend.
-type Storage interface {
-	Save(ctx context.Context, key string, r io.Reader) (ObjectInfo, error)
-	Open(ctx context.Context, key string) (io.ReadCloser, error)
-	Delete(ctx context.Context, key string) error
-	List(ctx context.Context, prefix string) ([]ObjectInfo, error)
-}
-
-func NewStorage(cfg *config.Config) (Storage, error) {
+// NewStorage builds an ArtifactStore from config.
+func NewStorage(cfg *config.Config) (domain.ArtifactStore, error) {
 	switch cfg.Storage.Type {
 	case config.LOCAL:
 		return NewLocalStorage(cfg.Storage.Dest), nil

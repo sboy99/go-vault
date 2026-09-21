@@ -10,27 +10,31 @@ import (
 
 	"github.com/sboy99/go-vault/internal/alert"
 	"github.com/sboy99/go-vault/internal/config"
+	"github.com/sboy99/go-vault/internal/domain"
 	"github.com/sboy99/go-vault/internal/engine"
 	"github.com/sboy99/go-vault/internal/meta"
 	"github.com/sboy99/go-vault/internal/metrics"
 	"github.com/sboy99/go-vault/internal/retention"
-	"github.com/sboy99/go-vault/internal/storage"
 	"github.com/sboy99/go-vault/internal/utils"
 	"github.com/sboy99/go-vault/pkg/logger"
 )
 
 // Service orchestrates dump, store, verify, restore, and prune.
 type Service struct {
-	cfg    *config.Config
-	store  storage.Storage
-	engine *engine.PostgresEngine
+	cfg      *config.Config
+	store    domain.ArtifactStore
+	engine   domain.DumpEngine
+	notifier domain.Notifier
+	metrics  domain.MetricsRecorder
 }
 
-func NewService(cfg *config.Config, store storage.Storage) *Service {
+func NewService(cfg *config.Config, store domain.ArtifactStore) *Service {
 	return &Service{
-		cfg:    cfg,
-		store:  store,
-		engine: engine.NewPostgresEngine(),
+		cfg:      cfg,
+		store:    store,
+		engine:   engine.NewPostgresEngine(),
+		notifier: alert.NewWebhookNotifier(cfg.Runtime.AlertWebhook),
+		metrics:  metrics.NewPrometheusRecorder(),
 	}
 }
 
@@ -83,17 +87,17 @@ func (s *Service) RestoreBackup(ctx context.Context, backupID string) error {
 	}
 	tmpPath := filepath.Join(s.cfg.Runtime.TempDir, backupMeta.Name+".restore")
 	if err := s.spoolToFile(ctx, backupMeta.StorageKey, tmpPath); err != nil {
-		metrics.RestoreTotal.WithLabelValues("failed").Inc()
+		s.metrics.RestoreFinished("failed")
 		return err
 	}
 	defer func() { _ = os.Remove(tmpPath) }()
 
 	if err := s.engine.Restore(ctx, s.connParams(), tmpPath, s.cfg.Runtime.RestoreJobs); err != nil {
-		metrics.RestoreTotal.WithLabelValues("failed").Inc()
-		alert.NotifyFailure(s.cfg.Runtime.AlertWebhook, "restore_failed", err.Error())
+		s.metrics.RestoreFinished("failed")
+		s.notifier.NotifyFailure(ctx, "restore_failed", err.Error())
 		return err
 	}
-	metrics.RestoreTotal.WithLabelValues("success").Inc()
+	s.metrics.RestoreFinished("success")
 	logger.Info("restore successful backup_id=%s", backupMeta.BackupId)
 	return nil
 }
@@ -153,7 +157,7 @@ func (s *Service) Prune(ctx context.Context) (int, error) {
 			continue
 		}
 		pruned++
-		metrics.RetentionPrunedTotal.Inc()
+		s.metrics.BackupPruned()
 	}
 	logger.Info("pruned %d backups", pruned)
 	return pruned, nil
@@ -192,10 +196,10 @@ func (s *Service) startMeta() (*meta.BackupMeta, error) {
 	return backupMeta, nil
 }
 
-func (s *Service) dumpAndSave(ctx context.Context, filename string) (storage.ObjectInfo, *engine.DumpResult, error) {
+func (s *Service) dumpAndSave(ctx context.Context, filename string) (domain.ObjectInfo, *domain.DumpResult, error) {
 	pr, pw := io.Pipe()
 	errCh := make(chan error, 1)
-	var dumpRes *engine.DumpResult
+	var dumpRes *domain.DumpResult
 
 	go func() {
 		defer func() { _ = pw.Close() }()
@@ -207,15 +211,15 @@ func (s *Service) dumpAndSave(ctx context.Context, filename string) (storage.Obj
 	info, saveErr := s.store.Save(ctx, filename, pr)
 	dumpErr := <-errCh
 	if dumpErr != nil {
-		return storage.ObjectInfo{}, dumpRes, fmt.Errorf("dump: %w", dumpErr)
+		return domain.ObjectInfo{}, dumpRes, fmt.Errorf("dump: %w", dumpErr)
 	}
 	if saveErr != nil {
-		return storage.ObjectInfo{}, dumpRes, fmt.Errorf("save: %w", saveErr)
+		return domain.ObjectInfo{}, dumpRes, fmt.Errorf("save: %w", saveErr)
 	}
 	return info, dumpRes, nil
 }
 
-func (s *Service) verifyDump(ctx context.Context, backupMeta *meta.BackupMeta, dumpRes *engine.DumpResult) error {
+func (s *Service) verifyDump(ctx context.Context, backupMeta *meta.BackupMeta, dumpRes *domain.DumpResult) error {
 	if err := os.MkdirAll(s.cfg.Runtime.TempDir, 0o755); err != nil {
 		return err
 	}
@@ -234,12 +238,12 @@ func (s *Service) verifyDump(ctx context.Context, backupMeta *meta.BackupMeta, d
 
 func (s *Service) failBackup(backupMeta *meta.BackupMeta, stage string, err error) (*meta.BackupMeta, error) {
 	_ = backupMeta.MarkFailed(err.Error())
-	metrics.ObserveBackupFailure()
-	alert.NotifyFailure(s.cfg.Runtime.AlertWebhook, "backup_failed", err.Error())
+	s.metrics.BackupFailed()
+	s.notifier.NotifyFailure(context.Background(), "backup_failed", err.Error())
 	return backupMeta, fmt.Errorf("%s: %w", stage, err)
 }
 
-func (s *Service) markSuccess(backupMeta *meta.BackupMeta, info storage.ObjectInfo, dumpRes *engine.DumpResult, started time.Time) (*meta.BackupMeta, error) {
+func (s *Service) markSuccess(backupMeta *meta.BackupMeta, info domain.ObjectInfo, dumpRes *domain.DumpResult, started time.Time) (*meta.BackupMeta, error) {
 	pgVersion := ""
 	if dumpRes != nil {
 		pgVersion = dumpRes.ServerVersion
@@ -247,7 +251,7 @@ func (s *Service) markSuccess(backupMeta *meta.BackupMeta, info storage.ObjectIn
 	if err := backupMeta.MarkSuccess(info.Size, info.SHA256, pgVersion, true); err != nil {
 		return backupMeta, err
 	}
-	metrics.ObserveBackupSuccess(started, info.Size)
+	s.metrics.BackupSucceeded(started, info.Size)
 	logger.Info("backup successful id=%s size=%d", backupMeta.BackupId, info.Size)
 	return backupMeta, nil
 }
@@ -269,8 +273,8 @@ func (s *Service) resolveBackup(backupID string) (*meta.BackupMeta, error) {
 	return nil, fmt.Errorf("backup not found: %s", backupID)
 }
 
-func (s *Service) connParams() engine.ConnParams {
-	return engine.ConnParams{
+func (s *Service) connParams() domain.ConnParams {
+	return domain.ConnParams{
 		Host:     s.cfg.DB.Host,
 		Port:     s.cfg.DB.Port,
 		Name:     s.cfg.DB.Name,

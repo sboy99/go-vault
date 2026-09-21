@@ -14,29 +14,15 @@ import (
 	"syscall"
 
 	_ "github.com/lib/pq"
+	"github.com/sboy99/go-vault/internal/domain"
 )
-
-// ConnParams holds connection settings for pg_dump/pg_restore.
-type ConnParams struct {
-	Host     string
-	Port     int
-	Name     string
-	Username string
-	Password string
-	SSLMode  string
-}
-
-// DumpResult holds metadata about a successful dump stream setup.
-type DumpResult struct {
-	ServerVersion string
-	ServerMajor   int
-	BinaryPath    string
-}
 
 // PostgresEngine runs official pg_dump / pg_restore binaries.
 type PostgresEngine struct {
 	BinRoots []string
 }
+
+var _ domain.DumpEngine = (*PostgresEngine)(nil)
 
 func NewPostgresEngine() *PostgresEngine {
 	return &PostgresEngine{
@@ -49,7 +35,7 @@ func NewPostgresEngine() *PostgresEngine {
 }
 
 // DumpTo streams a custom-format dump to w.
-func (e *PostgresEngine) DumpTo(ctx context.Context, p ConnParams, w io.Writer) (*DumpResult, error) {
+func (e *PostgresEngine) DumpTo(ctx context.Context, p domain.ConnParams, w io.Writer) (*domain.DumpResult, error) {
 	major, version, err := e.serverMajor(ctx, p)
 	if err != nil {
 		return nil, err
@@ -97,7 +83,7 @@ func (e *PostgresEngine) DumpTo(ctx context.Context, p ConnParams, w io.Writer) 
 		return nil, err
 	}
 
-	return &DumpResult{
+	return &domain.DumpResult{
 		ServerVersion: version,
 		ServerMajor:   major,
 		BinaryPath:    bin,
@@ -125,7 +111,7 @@ func (e *PostgresEngine) Verify(ctx context.Context, dumpPath string, serverMajo
 }
 
 // Restore applies a custom-format dump from dumpPath into the target database.
-func (e *PostgresEngine) Restore(ctx context.Context, p ConnParams, dumpPath string, jobs int) error {
+func (e *PostgresEngine) Restore(ctx context.Context, p domain.ConnParams, dumpPath string, jobs int) error {
 	major, _, err := e.serverMajor(ctx, p)
 	if err != nil {
 		return err
@@ -166,12 +152,12 @@ func (e *PostgresEngine) Restore(ctx context.Context, p ConnParams, dumpPath str
 }
 
 // ServerVersion returns the remote PostgreSQL version string and major number.
-func (e *PostgresEngine) ServerVersion(ctx context.Context, p ConnParams) (string, int, error) {
+func (e *PostgresEngine) ServerVersion(ctx context.Context, p domain.ConnParams) (string, int, error) {
 	major, version, err := e.serverMajor(ctx, p)
 	return version, major, err
 }
 
-func (e *PostgresEngine) serverMajor(ctx context.Context, p ConnParams) (int, string, error) {
+func (e *PostgresEngine) serverMajor(ctx context.Context, p domain.ConnParams) (int, string, error) {
 	connStr := fmt.Sprintf(
 		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		p.Host, p.Port, p.Username, p.Password, p.Name, p.SSLMode,
@@ -251,7 +237,6 @@ func pickBest(name string, serverMajor int, candidates []string) (string, error)
 			bestPath = path
 			continue
 		}
-		// Unknown major (e.g. PATH binary); keep as last-resort fallback.
 		if maj == 0 && fallback == "" {
 			fallback = path
 		}
@@ -297,7 +282,7 @@ func binaryMajor(path string) int {
 	return 0
 }
 
-func buildDSN(p ConnParams) string {
+func buildDSN(p domain.ConnParams) string {
 	ssl := p.SSLMode
 	if ssl == "" {
 		ssl = "require"

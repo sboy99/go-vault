@@ -14,7 +14,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/sboy99/go-vault/internal/config"
+	"github.com/sboy99/go-vault/internal/domain"
 )
+
+var _ domain.ArtifactStore = (*AWSCloudStorage)(nil)
 
 type hashingReader struct {
 	r      io.Reader
@@ -69,7 +72,7 @@ func NewAWSCloudStorage(cfg *config.Config) (*AWSCloudStorage, error) {
 	}, nil
 }
 
-func (a *AWSCloudStorage) Save(ctx context.Context, key string, r io.Reader) (ObjectInfo, error) {
+func (a *AWSCloudStorage) Save(ctx context.Context, key string, r io.Reader) (domain.ObjectInfo, error) {
 	hasher := sha256.New()
 	hr := &hashingReader{r: readerWithContext(ctx, r), hasher: hasher}
 
@@ -79,9 +82,9 @@ func (a *AWSCloudStorage) Save(ctx context.Context, key string, r io.Reader) (Ob
 		Body:   hr,
 	})
 	if err != nil {
-		return ObjectInfo{}, fmt.Errorf("s3 upload: %w", err)
+		return domain.ObjectInfo{}, fmt.Errorf("s3 upload: %w", err)
 	}
-	return ObjectInfo{
+	return domain.ObjectInfo{
 		Key:          key,
 		Size:         hr.n,
 		SHA256:       hex.EncodeToString(hasher.Sum(nil)),
@@ -108,8 +111,8 @@ func (a *AWSCloudStorage) Delete(ctx context.Context, key string) error {
 	return err
 }
 
-func (a *AWSCloudStorage) List(ctx context.Context, prefix string) ([]ObjectInfo, error) {
-	var out []ObjectInfo
+func (a *AWSCloudStorage) List(ctx context.Context, prefix string) ([]domain.ObjectInfo, error) {
+	var out []domain.ObjectInfo
 	paginator := s3.NewListObjectsV2Paginator(a.client, &s3.ListObjectsV2Input{
 		Bucket: aws.String(a.bucketName),
 		Prefix: aws.String(prefix),
@@ -124,7 +127,7 @@ func (a *AWSCloudStorage) List(ctx context.Context, prefix string) ([]ObjectInfo
 			if strings.HasSuffix(key, ".tmp") {
 				continue
 			}
-			info := ObjectInfo{Key: key, Size: aws.ToInt64(obj.Size)}
+			info := domain.ObjectInfo{Key: key, Size: aws.ToInt64(obj.Size)}
 			if obj.LastModified != nil {
 				info.LastModified = obj.LastModified.UTC()
 			}
