@@ -1,12 +1,13 @@
 package meta
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/sboy99/go-vault/internal/config"
-	"github.com/sboy99/go-vault/pkg/boltdb"
 	"github.com/sboy99/go-vault/internal/utils"
+	"github.com/sboy99/go-vault/pkg/boltdb"
 )
 
 type BackupStatus string
@@ -57,7 +58,7 @@ func (b *BackupMeta) Key() string {
 }
 
 func (b *BackupMeta) Save() error {
-	data, err := utils.MarshalJSON(b)
+	data, err := json.Marshal(b)
 	if err != nil {
 		return err
 	}
@@ -93,7 +94,7 @@ func GetBackupMeta(id string) (*BackupMeta, error) {
 		return nil, fmt.Errorf("backup %s not found", id)
 	}
 	var backupMeta BackupMeta
-	if err := utils.UnmarshalJSON(data, &backupMeta); err != nil {
+	if err := json.Unmarshal(data, &backupMeta); err != nil {
 		return nil, err
 	}
 	return &backupMeta, nil
@@ -123,7 +124,7 @@ func decodeBackupList(rows [][]byte) ([]*BackupMeta, error) {
 	var backupMetas []*BackupMeta
 	for _, row := range rows {
 		var backupMeta BackupMeta
-		if err := utils.UnmarshalJSON(row, &backupMeta); err != nil {
+		if err := json.Unmarshal(row, &backupMeta); err != nil {
 			return nil, err
 		}
 		backupMetas = append(backupMetas, &backupMeta)

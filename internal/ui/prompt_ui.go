@@ -1,9 +1,10 @@
 package ui
 
 import (
+	"strconv"
+
 	"github.com/manifoldco/promptui"
 	"github.com/sboy99/go-vault/internal/config"
-	"github.com/sboy99/go-vault/internal/utils"
 )
 
 func DisplaySelectDatabaseTypePrompt() (config.DatabaseEnum, error) {
@@ -60,7 +61,7 @@ func DisplayInputDatabasePortPrompt(dbType config.DatabaseEnum) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	resultInt, err := utils.ParseInt(result)
+	resultInt, err := strconv.Atoi(result)
 	if err != nil {
 		return 0, err
 	}

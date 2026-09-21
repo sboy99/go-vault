@@ -2,13 +2,14 @@ package job
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/sboy99/go-vault/internal/meta"
-	"github.com/sboy99/go-vault/pkg/boltdb"
 	"github.com/sboy99/go-vault/internal/utils"
+	"github.com/sboy99/go-vault/pkg/boltdb"
 )
 
 type Status string
@@ -116,7 +117,7 @@ func Get(id string) (*Job, error) {
 		return nil, fmt.Errorf("job %s not found", id)
 	}
 	var j Job
-	if err := utils.UnmarshalJSON(data, &j); err != nil {
+	if err := json.Unmarshal(data, &j); err != nil {
 		return nil, err
 	}
 	return &j, nil
@@ -134,7 +135,7 @@ func decodeJobList(rows [][]byte) ([]*Job, error) {
 	var jobs []*Job
 	for _, row := range rows {
 		var j Job
-		if err := utils.UnmarshalJSON(row, &j); err != nil {
+		if err := json.Unmarshal(row, &j); err != nil {
 			return nil, err
 		}
 	}
@@ -142,7 +143,7 @@ func decodeJobList(rows [][]byte) ([]*Job, error) {
 }
 
 func saveJob(j *Job) error {
-	data, err := utils.MarshalJSON(j)
+	data, err := json.Marshal(j)
 	if err != nil {
 		return err
 	}
