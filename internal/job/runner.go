@@ -138,6 +138,7 @@ func decodeJobList(rows [][]byte) ([]*Job, error) {
 		if err := json.Unmarshal(row, &j); err != nil {
 			return nil, err
 		}
+		jobs = append(jobs, &j)
 	}
 	return jobs, nil
 }
