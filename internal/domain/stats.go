@@ -23,7 +23,7 @@ type BackupStats struct {
 	DailySeries      []DailyBackupPoint `json:"daily_series"`
 }
 
-// RetentionPreview is the keep/prune split for the current GFS policy.
+// RetentionPreview is the keep/prune split for the current rollup policy.
 type RetentionPreview struct {
 	Keep  []Backup `json:"keep"`
 	Prune []Backup `json:"prune"`

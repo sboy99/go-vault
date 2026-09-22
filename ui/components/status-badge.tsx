@@ -1,10 +1,16 @@
 import { Badge } from "@/components/ui/badge";
-import type { BackupStatus, JobStatus } from "@/lib/api/types";
+import type { BackupStatus, BackupTier, JobStatus } from "@/lib/api/types";
 
 const backupLabels: Record<BackupStatus, string> = {
   success: "Success",
   failed: "Failed",
   running: "Running",
+};
+
+const tierLabels: Record<BackupTier, string> = {
+  daily: "Daily",
+  weekly: "Weekly",
+  monthly: "Monthly",
 };
 
 const jobLabels: Record<JobStatus, string> = {
@@ -22,6 +28,12 @@ export function BackupStatusBadge({ status }: { status: BackupStatus }) {
         ? "error"
         : "running";
   return <Badge tone={tone}>{backupLabels[status]}</Badge>;
+}
+
+export function BackupTierBadge({ tier }: { tier: BackupTier }) {
+  const tone =
+    tier === "monthly" ? "info" : tier === "weekly" ? "warning" : "neutral";
+  return <Badge tone={tone}>{tierLabels[tier] ?? tier}</Badge>;
 }
 
 export function JobStatusBadge({ status }: { status: JobStatus }) {

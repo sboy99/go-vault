@@ -27,7 +27,7 @@ export default async function SchedulePage() {
       <DemoBanner demo={demo} />
       <PageHeader
         title="Schedule"
-        description="Cron-triggered backups and GFS retention policy."
+        description="Cron-triggered backups and cycle rollup retention."
       />
 
       <div className="relative grid gap-0 border border-dashed border-edge lg:grid-cols-[2fr_1fr]">
@@ -71,7 +71,7 @@ export default async function SchedulePage() {
           className="border-dashed border-edge max-lg:border-t"
         >
           <CardTitle className="mb-3 border-b border-dashed border-edge pb-3">
-            GFS retention
+            Cycle rollup
           </CardTitle>
           <ul className="space-y-2 text-[13px]">
             <li className="flex justify-between border-b border-dashed border-edge pb-2">

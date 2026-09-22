@@ -1,143 +1,245 @@
 package domain
 
 import (
-	"fmt"
+	"math"
 	"sort"
 	"time"
 )
 
-// RetentionPolicy is a GFS retention policy.
+// RetentionPolicy caps how many backups of each rollup tier to keep.
 type RetentionPolicy struct {
 	Daily   int
 	Weekly  int
 	Monthly int
 }
 
-// Select returns backups to keep and prune according to GFS rules.
-// Only successful backups are considered. The newest successful backup is always kept.
-func Select(backups []Backup, p RetentionPolicy, now time.Time, loc *time.Location) (keep, prune []Backup) {
+// RetentionPlan is the keep/prune split with per-backup rollup tiers.
+type RetentionPlan struct {
+	Tiers map[string]BackupTier
+	Keep  []Backup
+	Prune []Backup
+}
+
+// Plan classifies successful backups by cycle rollup and returns keep/prune.
+//
+// Week cycle is Sunday–Saturday; month cycle is the calendar month. Closing a
+// week promotes its Saturday backup (or newest in the week) to weekly and
+// prunes the rest. Closing a month promotes its last-calendar-day backup (or
+// newest in the month) to monthly and prunes the rest of that month.
+// Non-successful backups are never pruned and are labeled daily. Caps trim the
+// newest N of each tier. The newest successful backup is always kept.
+func Plan(backups []Backup, p RetentionPolicy, now time.Time, loc *time.Location) RetentionPlan {
 	if loc == nil {
 		loc = time.UTC
 	}
 	now = now.In(loc)
 
-	var success []Backup
-	for _, b := range backups {
-		if b.Status != StatusSuccess {
-			continue
-		}
-		success = append(success, b)
+	out := RetentionPlan{
+		Tiers: map[string]BackupTier{},
+		Keep:  []Backup{},
+		Prune: []Backup{},
 	}
+
+	var success []Backup
+	var other []Backup
+	for _, b := range backups {
+		if b.Status == StatusSuccess {
+			success = append(success, b)
+		} else {
+			other = append(other, b)
+		}
+	}
+
+	for _, b := range other {
+		b.Tier = TierDaily
+		out.Tiers[b.BackupId] = TierDaily
+		out.Keep = append(out.Keep, b)
+	}
+
 	if len(success) == 0 {
-		return []Backup{}, []Backup{}
+		sortKeepPrune(&out)
+		return out
 	}
 
 	sort.Slice(success, func(i, j int) bool {
 		return success[i].CreatedAt.After(success[j].CreatedAt)
 	})
+	newestID := success[0].BackupId
 
-	keepSet := map[string]Backup{}
-	keepSet[success[0].BackupId] = success[0]
+	byWeek := map[string][]Backup{}
+	byMonth := map[string][]Backup{}
+	for _, b := range success {
+		wk := weekKey(b.CreatedAt, loc)
+		mk := monthKey(b.CreatedAt, loc)
+		byWeek[wk] = append(byWeek[wk], b)
+		byMonth[mk] = append(byMonth[mk], b)
+	}
 
-	dailySlots := map[string]Backup{}
-	weeklySlots := map[string]Backup{}
-	monthlySlots := map[string]Backup{}
+	weekAnchors := map[string]string{}
+	for wk, group := range byWeek {
+		end := weekCycleEnd(group[0].CreatedAt, loc)
+		if !cycleClosed(end, now, loc) {
+			continue
+		}
+		weekAnchors[wk] = resolveAnchor(group, loc, func(t time.Time) bool {
+			return dateOnly(t, loc).Equal(dateOnly(end, loc))
+		})
+	}
+
+	monthAnchors := map[string]string{}
+	for mk, group := range byMonth {
+		end := monthCycleEnd(group[0].CreatedAt, loc)
+		if !cycleClosed(end, now, loc) {
+			continue
+		}
+		monthAnchors[mk] = resolveAnchor(group, loc, func(t time.Time) bool {
+			return dateOnly(t, loc).Equal(dateOnly(end, loc))
+		})
+	}
+
+	type classified struct {
+		b    Backup
+		tier BackupTier
+		keep bool
+	}
+	var candidates []classified
 
 	for _, b := range success {
-		t := b.CreatedAt.In(loc)
-		dayKey := t.Format("2006-01-02")
-		year, week := t.ISOWeek()
-		weekKey := fmt.Sprintf("%04d-W%02d", year, week)
-		monthKey := t.Format("2006-01")
+		mk := monthKey(b.CreatedAt, loc)
+		wk := weekKey(b.CreatedAt, loc)
+		monthEnd := monthCycleEnd(b.CreatedAt, loc)
+		weekEnd := weekCycleEnd(b.CreatedAt, loc)
 
-		if existing, ok := dailySlots[dayKey]; !ok || b.CreatedAt.After(existing.CreatedAt) {
-			dailySlots[dayKey] = b
-		}
-		if existing, ok := weeklySlots[weekKey]; !ok || b.CreatedAt.After(existing.CreatedAt) {
-			weeklySlots[weekKey] = b
-		}
-		if existing, ok := monthlySlots[monthKey]; !ok || b.CreatedAt.After(existing.CreatedAt) {
-			monthlySlots[monthKey] = b
-		}
-	}
+		var tier BackupTier
+		keep := false
 
-	for key, b := range dailySlots {
-		if inLastNDays(key, now, loc, p.Daily) {
-			keepSet[b.BackupId] = b
+		switch {
+		case cycleClosed(monthEnd, now, loc):
+			if monthAnchors[mk] == b.BackupId {
+				tier = TierMonthly
+				keep = true
+			}
+		case cycleClosed(weekEnd, now, loc):
+			if weekAnchors[wk] == b.BackupId {
+				tier = TierWeekly
+				keep = true
+			}
+		default:
+			tier = TierDaily
+			keep = true
 		}
-	}
-	for key, b := range weeklySlots {
-		if inLastNWeeks(key, now, loc, p.Weekly) {
-			keepSet[b.BackupId] = b
-		}
-	}
-	for key, b := range monthlySlots {
-		if inLastNMonths(key, now, loc, p.Monthly) {
-			keepSet[b.BackupId] = b
-		}
-	}
 
-	for _, b := range success {
-		if _, ok := keepSet[b.BackupId]; ok {
-			keep = append(keep, b)
+		if keep {
+			candidates = append(candidates, classified{b: b, tier: tier, keep: true})
 		} else {
-			prune = append(prune, b)
+			b.Tier = TierDaily
+			out.Tiers[b.BackupId] = TierDaily
+			out.Prune = append(out.Prune, b)
 		}
 	}
 
-	if len(keep) == 0 && len(success) > 0 {
-		keep = []Backup{success[0]}
-		prune = append([]Backup(nil), success[1:]...)
+	// Apply safety caps per tier (newest N). Newest successful always survives.
+	byTier := map[BackupTier][]classified{
+		TierDaily:   {},
+		TierWeekly:  {},
+		TierMonthly: {},
+	}
+	for _, c := range candidates {
+		byTier[c.tier] = append(byTier[c.tier], c)
+	}
+	for tier, list := range byTier {
+		sort.Slice(list, func(i, j int) bool {
+			return list[i].b.CreatedAt.After(list[j].b.CreatedAt)
+		})
+		capN := tierCap(p, tier)
+		for i, c := range list {
+			b := c.b
+			b.Tier = tier
+			out.Tiers[b.BackupId] = tier
+			if i < capN || b.BackupId == newestID {
+				out.Keep = append(out.Keep, b)
+			} else {
+				out.Prune = append(out.Prune, b)
+			}
+		}
 	}
 
-	sort.Slice(keep, func(i, j int) bool { return keep[i].CreatedAt.After(keep[j].CreatedAt) })
-	sort.Slice(prune, func(i, j int) bool { return prune[i].CreatedAt.After(prune[j].CreatedAt) })
-	if keep == nil {
-		keep = []Backup{}
+	// Ensure newest is present even if somehow dropped.
+	if !containsBackupID(out.Keep, newestID) {
+		for i, b := range out.Prune {
+			if b.BackupId == newestID {
+				out.Keep = append(out.Keep, b)
+				out.Prune = append(out.Prune[:i], out.Prune[i+1:]...)
+				break
+			}
+		}
 	}
-	if prune == nil {
-		prune = []Backup{}
-	}
-	return keep, prune
+
+	sortKeepPrune(&out)
+	return out
 }
 
-func inLastNDays(dayKey string, now time.Time, loc *time.Location, n int) bool {
-	if n <= 0 {
-		return false
+func resolveAnchor(group []Backup, loc *time.Location, isAnchorDay func(time.Time) bool) string {
+	var bestOnDay *Backup
+	var newest *Backup
+	for i := range group {
+		b := &group[i]
+		if newest == nil || b.CreatedAt.After(newest.CreatedAt) {
+			newest = b
+		}
+		if isAnchorDay(b.CreatedAt) {
+			if bestOnDay == nil || b.CreatedAt.After(bestOnDay.CreatedAt) {
+				bestOnDay = b
+			}
+		}
 	}
-	t, err := time.ParseInLocation("2006-01-02", dayKey, loc)
-	if err != nil {
-		return false
+	if bestOnDay != nil {
+		return bestOnDay.BackupId
 	}
-	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc).AddDate(0, 0, -(n - 1))
-	return !t.Before(start)
+	if newest != nil {
+		return newest.BackupId
+	}
+	return ""
 }
 
-func inLastNWeeks(weekKey string, now time.Time, loc *time.Location, n int) bool {
+func tierCap(p RetentionPolicy, tier BackupTier) int {
+	// Config validation requires >= 1; treat <= 0 as unlimited so a zero-value
+	// policy in tests cannot wipe every backup of a tier.
+	n := 0
+	switch tier {
+	case TierWeekly:
+		n = p.Weekly
+	case TierMonthly:
+		n = p.Monthly
+	default:
+		n = p.Daily
+	}
 	if n <= 0 {
-		return false
+		return math.MaxInt
 	}
-	allowed := map[string]struct{}{}
-	t := now.In(loc)
-	for i := 0; i < n; i++ {
-		d := t.AddDate(0, 0, -7*i)
-		y, w := d.ISOWeek()
-		allowed[fmt.Sprintf("%04d-W%02d", y, w)] = struct{}{}
-	}
-	_, ok := allowed[weekKey]
-	return ok
+	return n
 }
 
-func inLastNMonths(monthKey string, now time.Time, loc *time.Location, n int) bool {
-	if n <= 0 {
-		return false
+func containsBackupID(list []Backup, id string) bool {
+	for _, b := range list {
+		if b.BackupId == id {
+			return true
+		}
 	}
-	allowed := map[string]struct{}{}
-	year, month, _ := now.In(loc).Date()
-	for i := 0; i < n; i++ {
-		m := time.Date(year, month, 1, 0, 0, 0, 0, loc).AddDate(0, -i, 0)
-		allowed[m.Format("2006-01")] = struct{}{}
+	return false
+}
+
+func sortKeepPrune(out *RetentionPlan) {
+	sort.Slice(out.Keep, func(i, j int) bool {
+		return out.Keep[i].CreatedAt.After(out.Keep[j].CreatedAt)
+	})
+	sort.Slice(out.Prune, func(i, j int) bool {
+		return out.Prune[i].CreatedAt.After(out.Prune[j].CreatedAt)
+	})
+	if out.Keep == nil {
+		out.Keep = []Backup{}
 	}
-	_, ok := allowed[monthKey]
-	return ok
+	if out.Prune == nil {
+		out.Prune = []Backup{}
+	}
 }

@@ -1,6 +1,7 @@
 export type BackupStatus = "running" | "success" | "failed";
 export type JobStatus = "queued" | "running" | "succeeded" | "failed";
 export type JobType = "backup" | "restore";
+export type BackupTier = "daily" | "weekly" | "monthly";
 
 export type Backup = {
   id: string;
@@ -18,6 +19,7 @@ export type Backup = {
   pg_version?: string;
   format: string;
   verified: boolean;
+  tier?: BackupTier;
 };
 
 export type Job = {

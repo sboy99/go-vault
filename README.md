@@ -1,6 +1,6 @@
 # Go-Vault
 
-PostgreSQL backup service. It dumps with the official `pg_dump` / `pg_restore` binaries, stores artifacts on local disk or S3, keeps a GFS retention set (7 daily / 4 weekly / 12 monthly by default), and runs the schedule inside one process.
+PostgreSQL backup service. It dumps with the official `pg_dump` / `pg_restore` binaries, stores artifacts on local disk or S3, keeps a cycle rollup retention set (7 daily / 4 weekly / 12 monthly by default), and runs the schedule inside one process.
 
 The Docker image ships three things:
 
@@ -65,7 +65,7 @@ The default container process starts the API and the UI together.
 |---|---|
 | Overview | Backup counts, size, recent backups, recent jobs |
 | Jobs | Async backup and restore jobs |
-| Schedule | Cron expression, next run, GFS keep/prune preview |
+| Schedule | Cron expression, next run, rollup keep/prune preview |
 | Settings | Redacted database, storage, and retention config |
 
 The UI talks to the API at `GOVAULT_API_URL` (default `http://127.0.0.1:8080` inside the image). It does not show passwords or cloud secrets.
@@ -125,7 +125,7 @@ When `GO_VAULT_API_TOKEN` is set, send `Authorization: Bearer <token>` on every 
 | GET | `/v1/jobs/{id}` | One job |
 | GET | `/v1/config` | Redacted config, including `next_run` |
 | GET | `/v1/stats` | Counts, total size, and whether a job is running |
-| GET | `/v1/retention` | Backups the GFS policy would keep and prune |
+| GET | `/v1/retention` | Backups the rollup policy would keep and prune |
 
 Trigger a backup:
 
@@ -211,12 +211,12 @@ GO_VAULT_STORAGE_CLOUD_AWS_ACCESS_KEY_SECRET=... \
 | Variable | Default | Description |
 |---|---|---|
 | `GO_VAULT_SCHEDULE_CRON` | `0 2 * * *` | Five-field cron. Default is 02:00 every day |
-| `GO_VAULT_SCHEDULE_TIMEZONE` | `UTC` | Timezone for cron and for GFS day/week/month boundaries |
-| `GO_VAULT_RETENTION_DAILY` | `7` | Newest successful backup per day, for this many days |
-| `GO_VAULT_RETENTION_WEEKLY` | `4` | Newest successful backup per ISO week, for this many weeks |
-| `GO_VAULT_RETENTION_MONTHLY` | `12` | Newest successful backup per month, for this many months |
+| `GO_VAULT_SCHEDULE_TIMEZONE` | `UTC` | Timezone for cron and for week/month cycle boundaries |
+| `GO_VAULT_RETENTION_DAILY` | `7` | Cap on daily backups kept in the open week |
+| `GO_VAULT_RETENTION_WEEKLY` | `4` | Cap on weekly backups (Saturday of each closed week) kept in the open month |
+| `GO_VAULT_RETENTION_MONTHLY` | `12` | Cap on monthly backups (last calendar day of each closed month) |
 
-Each value must be at least 1. The newest successful backup is always kept. Failed backups are not part of the retention set. Prune runs after each successful backup.
+Each value must be at least 1. Weeks run Sunday–Saturday. When a week closes, its Saturday backup is promoted to weekly and the rest of that week is pruned (newest in the week if Saturday is missing). When a month closes, its last-day backup is promoted to monthly and the rest of that month is pruned. The newest successful backup is always kept. Failed backups are not pruned. Prune runs after each successful backup.
 
 The scheduler starts with `go-vault-server`. It will not start a new dump while a backup or restore job is already running.
 
@@ -250,7 +250,7 @@ Webhook body:
 1. `pg_dump -Fc` writes a custom-format dump.
 2. `pg_restore --list` checks that the archive can be read.
 3. The file is streamed to local disk or S3. Metadata (id, name, size, sha256, Postgres version, status) is stored in BoltDB.
-4. Retention deletes artifacts that fall outside the GFS windows.
+4. Retention deletes artifacts that the cycle rollup no longer keeps.
 
 On startup the server reconciles BoltDB with the files it can still see in storage.
 

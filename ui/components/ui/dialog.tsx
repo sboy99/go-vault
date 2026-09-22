@@ -46,7 +46,7 @@ export function Dialog({
         aria-labelledby="dialog-title"
         aria-describedby={description ? "dialog-desc" : undefined}
         className={cn(
-          "relative z-10 w-full max-w-md rounded-xl border border-edge bg-surface-raised p-4",
+          "relative z-10 w-full max-w-md rounded-none border border-dashed border-edge bg-surface p-4",
           className,
         )}
       >

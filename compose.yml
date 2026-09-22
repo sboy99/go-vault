@@ -47,7 +47,7 @@ services:
       - go_vault_net
     ports:
       - "8080:8080"
-      - "6000:3000"
+      - "8000:3000"
 
 networks:
   go_vault_net:

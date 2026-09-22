@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -130,45 +131,78 @@ func (s *BackupService) ListBackups(ctx context.Context, limit, offset int) ([]*
 	if limit <= 0 {
 		limit = 50
 	}
-	return s.backups.List(ctx, limit, offset)
+	plan, all, err := s.planAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(all, func(i, j int) bool {
+		return all[i].CreatedAt.After(all[j].CreatedAt)
+	})
+	if offset > len(all) {
+		return []*domain.Backup{}, nil
+	}
+	page := all[offset:]
+	if limit < len(page) {
+		page = page[:limit]
+	}
+	out := make([]*domain.Backup, len(page))
+	for i, b := range page {
+		out[i] = applyTier(b, plan.Tiers)
+	}
+	return out, nil
 }
 
 func (s *BackupService) GetBackup(ctx context.Context, id string) (*domain.Backup, error) {
-	return s.backups.FindByID(ctx, id)
+	plan, all, err := s.planAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, b := range all {
+		if b.BackupId == id {
+			return applyTier(b, plan.Tiers), nil
+		}
+	}
+	return nil, domain.ErrBackupNotFound
 }
 
 func (s *BackupService) OpenBackup(ctx context.Context, id string) (io.ReadCloser, *domain.Backup, error) {
-	b, err := s.backups.FindByID(ctx, id)
+	plan, all, err := s.planAll(ctx)
 	if err != nil {
 		return nil, nil, err
+	}
+	var b *domain.Backup
+	for _, row := range all {
+		if row.BackupId == id {
+			b = row
+			break
+		}
+	}
+	if b == nil {
+		return nil, nil, domain.ErrBackupNotFound
 	}
 	rc, err := s.store.Open(ctx, b.StorageKey)
 	if err != nil {
 		return nil, nil, err
 	}
-	return rc, b, nil
+	return rc, applyTier(b, plan.Tiers), nil
 }
 
 func (s *BackupService) Prune(ctx context.Context) (int, error) {
-	all, err := s.backups.FindAll(ctx)
+	plan, _, err := s.planAll(ctx)
 	if err != nil {
 		return 0, err
 	}
-	flat := make([]domain.Backup, 0, len(all))
-	for _, b := range all {
-		flat = append(flat, *b)
-	}
-
-	_, prune := domain.Select(flat, s.cfg.Retention, time.Now().UTC(), s.cfg.Location)
 
 	pruned := 0
-	for _, b := range prune {
-		if err := s.store.Delete(ctx, b.StorageKey); err != nil {
-			logger.Warn("prune storage delete failed for %s: %v", b.StorageKey, err)
-			continue
-		}
+	for _, b := range plan.Prune {
+		// Meta first so a storage failure leaves an orphan file (Reconcile can
+		// recover), not a metadata row pointing at a deleted artifact.
 		if err := s.backups.Delete(ctx, b.BackupId); err != nil {
 			logger.Warn("prune meta delete failed for %s: %v", b.BackupId, err)
+			continue
+		}
+		if err := s.store.Delete(ctx, b.StorageKey); err != nil {
+			logger.Warn("prune storage delete failed for %s: %v", b.StorageKey, err)
 			continue
 		}
 		pruned++
@@ -290,18 +324,41 @@ func (s *BackupService) Stats(ctx context.Context) (*domain.BackupStats, error) 
 	return stats, nil
 }
 
-// RetentionPreview returns the keep/prune split for the configured GFS policy.
+// RetentionPreview returns the keep/prune split for the configured rollup policy.
 func (s *BackupService) RetentionPreview(ctx context.Context) (*domain.RetentionPreview, error) {
-	all, err := s.backups.FindAll(ctx)
+	plan, _, err := s.planAll(ctx)
 	if err != nil {
 		return nil, err
+	}
+	return &domain.RetentionPreview{Keep: plan.Keep, Prune: plan.Prune}, nil
+}
+
+// planAll loads every backup and runs the cycle-rollup Plan once.
+func (s *BackupService) planAll(ctx context.Context) (domain.RetentionPlan, []*domain.Backup, error) {
+	all, err := s.backups.FindAll(ctx)
+	if err != nil {
+		return domain.RetentionPlan{}, nil, err
 	}
 	flat := make([]domain.Backup, 0, len(all))
 	for _, b := range all {
 		flat = append(flat, *b)
 	}
-	keep, prune := domain.Select(flat, s.cfg.Retention, time.Now().UTC(), s.cfg.Location)
-	return &domain.RetentionPreview{Keep: keep, Prune: prune}, nil
+	plan := domain.Plan(flat, s.cfg.Retention, time.Now().UTC(), s.cfg.Location)
+	return plan, all, nil
+}
+
+// applyTier returns a copy of b with Tier from the rollup map (defaults to daily).
+func applyTier(b *domain.Backup, tiers map[string]domain.BackupTier) *domain.Backup {
+	if b == nil {
+		return nil
+	}
+	out := *b
+	if t, ok := tiers[b.BackupId]; ok {
+		out.Tier = t
+	} else {
+		out.Tier = domain.TierDaily
+	}
+	return &out
 }
 
 func (s *BackupService) startBackup(ctx context.Context) (*domain.Backup, error) {
@@ -356,9 +413,12 @@ func (s *BackupService) verifyDump(ctx context.Context, backup *domain.Backup, d
 
 func (s *BackupService) failBackup(ctx context.Context, backup *domain.Backup, stage string, err error) (*domain.Backup, error) {
 	failed := backup.MarkFailed(err.Error())
-	_ = s.backups.Save(ctx, &failed)
+	toSave := failed
+	toSave.Tier = ""
+	_ = s.backups.Save(ctx, &toSave)
 	s.metrics.BackupFailed()
 	s.notifier.NotifyFailure(ctx, "backup_failed", err.Error())
+	failed.Tier = domain.TierDaily
 	return &failed, fmt.Errorf("%s: %w", stage, err)
 }
 
@@ -368,11 +428,15 @@ func (s *BackupService) markSuccess(ctx context.Context, backup *domain.Backup, 
 		pgVersion = dumpRes.ServerVersion
 	}
 	success := backup.MarkSuccess(info.Size, info.SHA256, pgVersion, true)
-	if err := s.backups.Save(ctx, &success); err != nil {
+	toSave := success
+	toSave.Tier = ""
+	if err := s.backups.Save(ctx, &toSave); err != nil {
+		success.Tier = domain.TierDaily
 		return &success, err
 	}
 	s.metrics.BackupSucceeded(started, info.Size)
 	logger.Info("backup successful id=%s size=%d", success.BackupId, info.Size)
+	success.Tier = domain.TierDaily
 	return &success, nil
 }
 

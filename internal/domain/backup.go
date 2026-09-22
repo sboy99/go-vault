@@ -46,6 +46,7 @@ type Backup struct {
 	PgVersion    string       `json:"pg_version,omitempty"`
 	Format       string       `json:"format"`
 	Verified     bool         `json:"verified"`
+	Tier         BackupTier   `json:"tier,omitempty"`
 }
 
 // NewBackup creates a running backup entity with a time-sortable ID.
