@@ -2,6 +2,7 @@ import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { getConfig, getRetention } from "@/lib/api/client";
 import { describeCron, formatBytes } from "@/lib/format";
+import { backupHref } from "@/lib/route-id";
 import { PageHeader } from "@/components/layout/page-header";
 import { DemoBanner } from "@/components/demo-banner";
 import { Card, CardTitle } from "@/components/ui/card";
@@ -18,7 +19,8 @@ export default async function SchedulePage() {
   ]);
   const demo = configRes.demo || retentionRes.demo;
   const cfg = configRes.data;
-  const { keep, prune } = retentionRes.data;
+  const keep = retentionRes.data.keep ?? [];
+  const prune = retentionRes.data.prune ?? [];
 
   return (
     <div>
@@ -144,7 +146,7 @@ function RetentionTable({
               <TR key={b.id}>
                 <TD>
                   <Link
-                    href={`/backups/${encodeURIComponent(b.id)}`}
+                    href={backupHref(b.id)}
                     className="font-mono text-[12px] text-brand no-underline hover:underline"
                   >
                     {b.name}

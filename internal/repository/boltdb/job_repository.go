@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/sboy99/go-vault/internal/domain"
 	boltclient "github.com/sboy99/go-vault/pkg/boltdb"
@@ -56,7 +57,7 @@ func (r *JobRepository) FindByID(ctx context.Context, id string) (*domain.Job, e
 
 func (r *JobRepository) List(ctx context.Context, limit, offset int) ([]*domain.Job, error) {
 	_ = ctx
-	rows, err := r.client.List(bucketJob, limit, offset)
+	rows, err := r.client.ListAll(bucketJob)
 	if err != nil {
 		return nil, err
 	}
@@ -67,6 +68,16 @@ func (r *JobRepository) List(ctx context.Context, limit, offset int) ([]*domain.
 			return nil, err
 		}
 		out = append(out, &j)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].CreatedAt.After(out[j].CreatedAt)
+	})
+	if offset > len(out) {
+		return []*domain.Job{}, nil
+	}
+	out = out[offset:]
+	if limit > 0 && limit < len(out) {
+		out = out[:limit]
 	}
 	return out, nil
 }

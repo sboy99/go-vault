@@ -13,6 +13,7 @@ import type {
   StatsResponse,
 } from "@/lib/api/types";
 import { formatBytes } from "@/lib/format";
+import { backupHref, jobHref } from "@/lib/route-id";
 import { PageHeader } from "@/components/layout/page-header";
 import { DemoBanner } from "@/components/demo-banner";
 import { Card, CardTitle } from "@/components/ui/card";
@@ -149,7 +150,7 @@ export default async function OverviewPage() {
                 >
                   <div className="min-w-0">
                     <Link
-                      href={`/jobs/${job.id}`}
+                      href={jobHref(job.id)}
                       className="block truncate text-[13px] text-foreground no-underline hover:text-brand"
                     >
                       {job.type} · {job.id.slice(0, 8)}
@@ -192,7 +193,7 @@ export default async function OverviewPage() {
               >
                 <div className="min-w-0">
                   <Link
-                    href={`/backups/${encodeURIComponent(b.id)}`}
+                    href={backupHref(b.id)}
                     className="truncate font-mono text-[13px] text-foreground no-underline hover:text-brand"
                   >
                     {b.name}

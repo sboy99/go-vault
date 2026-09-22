@@ -51,7 +51,7 @@ func (r *JobRepository) List(ctx context.Context, limit, offset int) ([]*domain.
 		out = append(out, &cp)
 	}
 	sort.Slice(out, func(i, j int) bool {
-		return out[i].CreatedAt.Before(out[j].CreatedAt)
+		return out[i].CreatedAt.After(out[j].CreatedAt)
 	})
 	if offset > len(out) {
 		return []*domain.Job{}, nil

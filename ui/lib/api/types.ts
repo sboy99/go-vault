@@ -80,8 +80,8 @@ export type RedactedConfig = {
 };
 
 export type RetentionPreview = {
-  keep: Backup[];
-  prune: Backup[];
+  keep: Backup[] | null;
+  prune: Backup[] | null;
 };
 
 export type HealthStatus = {

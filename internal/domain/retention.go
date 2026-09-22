@@ -29,7 +29,7 @@ func Select(backups []Backup, p RetentionPolicy, now time.Time, loc *time.Locati
 		success = append(success, b)
 	}
 	if len(success) == 0 {
-		return nil, nil
+		return []Backup{}, []Backup{}
 	}
 
 	sort.Slice(success, func(i, j int) bool {
@@ -92,6 +92,12 @@ func Select(backups []Backup, p RetentionPolicy, now time.Time, loc *time.Locati
 
 	sort.Slice(keep, func(i, j int) bool { return keep[i].CreatedAt.After(keep[j].CreatedAt) })
 	sort.Slice(prune, func(i, j int) bool { return prune[i].CreatedAt.After(prune[j].CreatedAt) })
+	if keep == nil {
+		keep = []Backup{}
+	}
+	if prune == nil {
+		prune = []Backup{}
+	}
 	return keep, prune
 }
 

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { listJobs } from "@/lib/api/client";
 import { formatDuration } from "@/lib/format";
+import { jobHref } from "@/lib/route-id";
 import { PageHeader } from "@/components/layout/page-header";
 import { DemoBanner } from "@/components/demo-banner";
 import { JobStatusBadge } from "@/components/status-badge";
@@ -47,7 +48,7 @@ export default async function JobsPage() {
               <TR key={job.id}>
                 <TD>
                   <Link
-                    href={`/jobs/${job.id}`}
+                    href={jobHref(job.id)}
                     className="font-mono text-[12px] text-foreground no-underline hover:text-brand"
                   >
                     {job.id}

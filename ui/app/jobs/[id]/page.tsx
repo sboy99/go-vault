@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { ApiError, getJob } from "@/lib/api/client";
 import { formatDuration } from "@/lib/format";
+import { backupHref, fromPathId } from "@/lib/route-id";
 import { PageHeader } from "@/components/layout/page-header";
 import { DemoBanner } from "@/components/demo-banner";
 import { JobStatusBadge } from "@/components/status-badge";
@@ -15,7 +16,8 @@ export async function generateMetadata({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = await params;
+  const { id: pathId } = await params;
+  const id = fromPathId(pathId);
   return { title: `Job ${id.slice(0, 8)}` };
 }
 
@@ -29,7 +31,8 @@ export default async function JobDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = await params;
+  const { id: pathId } = await params;
+  const id = fromPathId(pathId);
   let result;
   try {
     result = await getJob(id);
@@ -98,7 +101,7 @@ export default async function JobDetailPage({
               <dt className="w-28 shrink-0 text-foreground-muted">Backup</dt>
               <dd>
                 <Link
-                  href={`/backups/${encodeURIComponent(job.backup_id)}`}
+                  href={backupHref(job.backup_id)}
                   className="break-all font-mono text-[12px] text-brand no-underline hover:underline"
                 >
                   {job.backup_id}

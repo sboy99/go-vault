@@ -26,7 +26,7 @@ export function useJobPoll(enabled: boolean, intervalMs = 3000) {
         const running = jobs.some(
           (j) => j.status === "running" || j.status === "queued",
         );
-        if (!cancelled) {
+        if (!cancelled && running) {
           router.refresh();
         }
         if (!running) {

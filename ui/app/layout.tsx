@@ -23,7 +23,11 @@ export const metadata: Metadata = {
   description: "PostgreSQL backup control plane",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html
       lang="en"
