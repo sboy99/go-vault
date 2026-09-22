@@ -39,7 +39,8 @@ Godeps/
 
 # Output
 generated/
-backups/
+# Repo-root dump dir only. A bare backups/ also ignores ui/**/backups/.
+/backups/
 
 # Config
 config.json
