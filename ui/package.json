@@ -1,12 +1,25 @@
 {
   "name": "ui",
   "version": "0.2.1",
-  "private": true,
+  "description": "Go Vault UI",
+  "author": "sboy99",
+  "license": "MIT",
+  "homepage": "https://github.com/sboy99/go-vault",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sboy99/go-vault.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sboy99/go-vault/issues"
+  },
+  "private": false,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "format": "prettier --write .",
+    "clean": "rm -rf .next"
   },
   "dependencies": {
     "date-fns": "^4.4.0",
