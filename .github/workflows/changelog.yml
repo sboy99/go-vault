@@ -1,0 +1,78 @@
+# On a semver release tag, record that version in CHANGELOG.md and push it
+# to the default branch. Hand-written sections are kept. An [Unreleased] block
+# with bullets is promoted; otherwise notes come from conventional commits
+# since the previous stable tag (feat, fix, perf, security, and breaking changes).
+
+name: Update changelog
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+concurrency:
+  group: changelog-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  changelog:
+    name: Update CHANGELOG.md
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Resolve version
+        id: ver
+        run: |
+          raw="${GITHUB_REF_NAME}"
+          ver="${raw#v}"
+          echo "version=${ver}" >> "$GITHUB_OUTPUT"
+          echo "tag=${raw}" >> "$GITHUB_OUTPUT"
+
+      - name: Update CHANGELOG.md
+        run: ./scripts/update-changelog.sh "${{ steps.ver.outputs.tag }}"
+
+      - name: Commit and push
+        run: |
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "changelog already contains ${{ steps.ver.outputs.version }}; nothing to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git commit -m "docs: update changelog for ${{ steps.ver.outputs.version }}"
+          branch="${{ github.event.repository.default_branch }}"
+          for attempt in 1 2 3; do
+            if git push origin "HEAD:${branch}"; then
+              exit 0
+            fi
+            echo "push failed (attempt ${attempt}); rebasing onto ${branch}"
+            if ! git pull --rebase origin "${branch}"; then
+              echo "rebase failed" >&2
+              exit 1
+            fi
+          done
+          echo "failed to push changelog" >&2
+          exit 1
+
+      - name: Summary
+        run: |
+          {
+            echo "## Changelog"
+            echo ""
+            echo "Recorded **${{ steps.ver.outputs.version }}** in \`CHANGELOG.md\`."
+            echo ""
+            awk -v ver="${{ steps.ver.outputs.version }}" '
+              $0 ~ "^## \\[" ver "\\]" { show=1 }
+              show && /^## / && $0 !~ "^## \\[" ver "\\]" { exit }
+              show { print }
+            ' CHANGELOG.md
+          } >> "$GITHUB_STEP_SUMMARY"
