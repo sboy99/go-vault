@@ -6,8 +6,8 @@
 name: Update changelog
 
 on:
-  push:
-    tags: ["v*.*.*"]
+  release:
+    types: ["published"]
 
 concurrency:
   group: changelog-${{ github.ref }}
