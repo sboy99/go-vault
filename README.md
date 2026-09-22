@@ -78,7 +78,7 @@ Two binaries share the same config and services. `go-vault` does not run the sch
 
 ### On the host
 
-Requires Go 1.25+ and `pg_dump` / `pg_restore` whose client major is at least the server major.
+Requires Go 1.25+ and `pg_dump` / `pg_restore` / `psql` matching the server major when possible. A newer client can dump an older server, but restoring into that server needs a matching (or carefully filtered) client.
 
 ```bash
 make build
@@ -264,7 +264,7 @@ make test
 docker build -t go-vault:dev .
 ```
 
-The image installs PostgreSQL client 15, 16, and 17 and picks a client major that can talk to the server.
+The image installs PostgreSQL client 15, 16, and 17 and prefers the client that matches the server major. Archives written by a newer `pg_dump` are restored through a filtered SQL path (single-threaded via `psql`) so older servers do not see unsupported settings such as `transaction_timeout`.
 
 UI-only development (the dashboard against a running API, or demo fixtures) is documented in [`ui/README.md`](ui/README.md).
 
