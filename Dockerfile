@@ -64,6 +64,10 @@ WORKDIR /ui
 
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Node 22 bundles npm 10. This lockfile is written by npm 11, and npm 10's
+# `npm ci` rejects it. This image's npm 10.9.8 can upgrade itself.
+RUN npm install -g npm@11.6.2
+
 # Step 2.1: Install deps from the lockfile (include devDeps — next/tsc/tailwind compile the app).
 COPY ui/package.json ui/package-lock.json ./
 RUN npm ci
