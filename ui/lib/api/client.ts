@@ -285,7 +285,7 @@ export async function downloadBackupStream(id: string): Promise<Response> {
     return new Response("demo backup payload", {
       headers: {
         "Content-Type": "application/octet-stream",
-        "Content-Disposition": `attachment; filename="demo-backup.dump"`,
+        "Content-Disposition": `attachment; filename="demo-backup.sql.gz"`,
       },
     });
   }
@@ -309,7 +309,7 @@ export async function downloadBackupStream(id: string): Promise<Response> {
           res.headers.get("Content-Type") || "application/octet-stream",
         "Content-Disposition":
           res.headers.get("Content-Disposition") ||
-          `attachment; filename="backup.dump"`,
+          `attachment; filename="backup.sql.gz"`,
       },
     });
   } catch (err) {
@@ -317,7 +317,7 @@ export async function downloadBackupStream(id: string): Promise<Response> {
       return new Response("demo backup payload", {
         headers: {
           "Content-Type": "application/octet-stream",
-          "Content-Disposition": `attachment; filename="demo-backup.dump"`,
+          "Content-Disposition": `attachment; filename="demo-backup.sql.gz"`,
         },
       });
     }

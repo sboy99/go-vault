@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"bytes"
+	"compress/gzip"
 	"io"
 	"os"
 	"path/filepath"
@@ -72,11 +74,7 @@ func TestFilterTransactionTimeout(t *testing.T) {
 		"CREATE TABLE t (id int);",
 	}, "\n") + "\n"
 
-	outBytes, err := io.ReadAll(filterTransactionTimeout(strings.NewReader(in)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	out := string(outBytes)
+	out := string(readFiltered(t, strings.NewReader(in)))
 	if strings.Contains(out, "transaction_timeout") {
 		t.Fatalf("filter left transaction_timeout in output:\n%s", out)
 	}
@@ -91,6 +89,101 @@ func TestFilterTransactionTimeout(t *testing.T) {
 			t.Fatalf("missing line %q in:\n%s", want, out)
 		}
 	}
+}
+
+func TestFilterTransactionTimeoutPassesLongLines(t *testing.T) {
+	long := strings.Repeat("x", 100*1024)
+	in := "SET transaction_timeout = 0;\n" + long + "\nCREATE TABLE t (id int);\n"
+	out := string(readFiltered(t, strings.NewReader(in)))
+	if strings.Contains(out, "transaction_timeout") {
+		t.Fatal("filter left transaction_timeout")
+	}
+	if !strings.Contains(out, long) {
+		t.Fatal("long line was not passed through")
+	}
+	if !strings.Contains(out, "CREATE TABLE t (id int);") {
+		t.Fatal("trailing SQL missing")
+	}
+}
+
+func TestVerifyGzipSQLDump(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ok.sql.gz")
+	writeGzipSQL(t, path, dumpBrandingBanner+"--\n-- PostgreSQL database dump\n--\nCREATE TABLE t (id int);\n")
+
+	if err := verifyGzipSQLDump(path); err != nil {
+		t.Fatalf("verify valid dump: %v", err)
+	}
+}
+
+func TestVerifyGzipSQLDumpRejectsTruncated(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "bad.sql.gz")
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	_, _ = gz.Write([]byte(dumpBrandingBanner + "--\n-- PostgreSQL database dump\n--\n"))
+	_ = gz.Close()
+	truncated := buf.Bytes()
+	if len(truncated) < 4 {
+		t.Fatal("gzip output too small to truncate")
+	}
+	if err := os.WriteFile(path, truncated[:len(truncated)/2], 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := verifyGzipSQLDump(path); err == nil {
+		t.Fatal("expected verify to fail on truncated gzip")
+	}
+}
+
+func TestVerifyGzipSQLDumpRejectsNonDump(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "nodump.sql.gz")
+	writeGzipSQL(t, path, "SELECT 1;\n")
+
+	if err := verifyGzipSQLDump(path); err == nil {
+		t.Fatal("expected verify to reject non-dump content")
+	}
+}
+
+func TestVerifyGzipSQLDumpRejectsMissingBranding(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "nobrand.sql.gz")
+	writeGzipSQL(t, path, "--\n-- PostgreSQL database dump\n--\nCREATE TABLE t (id int);\n")
+
+	if err := verifyGzipSQLDump(path); err == nil {
+		t.Fatal("expected verify to reject dump without go-vault branding")
+	}
+}
+
+func writeGzipSQL(t *testing.T, path, sql string) {
+	t.Helper()
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gz := gzip.NewWriter(f)
+	if _, err := io.WriteString(gz, sql); err != nil {
+		t.Fatal(err)
+	}
+	if err := gz.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func readFiltered(t *testing.T, r io.Reader) []byte {
+	t.Helper()
+	pr, wait := filterTransactionTimeout(r)
+	out, err := io.ReadAll(pr)
+	_ = pr.Close()
+	wait()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
 }
 
 func writeFakeBin(t *testing.T, root, major, name string) string {

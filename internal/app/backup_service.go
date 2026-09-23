@@ -237,7 +237,7 @@ func (s *BackupService) Reconcile(ctx context.Context) error {
 		if _, ok := known[base]; ok {
 			continue
 		}
-		if !strings.HasSuffix(base, ".dump") && !strings.HasSuffix(base, ".sql") {
+		if !strings.HasSuffix(base, ".sql.gz") && !strings.HasSuffix(base, ".dump") && !strings.HasSuffix(base, ".sql") {
 			continue
 		}
 		m := domain.NewBackup(base, s.cfg.DatabaseType, s.cfg.StorageType)
@@ -384,6 +384,9 @@ func (s *BackupService) dumpAndSave(ctx context.Context, filename string) (domai
 	}()
 
 	info, saveErr := s.store.Save(ctx, filename, pr)
+	if saveErr != nil {
+		_ = pr.CloseWithError(saveErr)
+	}
 	dumpErr := <-errCh
 	if dumpErr != nil {
 		return domain.ObjectInfo{}, dumpRes, fmt.Errorf("dump: %w", dumpErr)
@@ -473,5 +476,5 @@ func (s *BackupService) spoolToFile(ctx context.Context, key, dest string) error
 }
 
 func buildFileName(dbName string) string {
-	return fmt.Sprintf("%d_%s_backup.dump", time.Now().Unix(), dbName)
+	return fmt.Sprintf("%d_%s_backup.sql.gz", time.Now().Unix(), dbName)
 }
