@@ -26,7 +26,7 @@ func NewRootCommand(deps Deps) *cobra.Command {
 	root := &cobra.Command{
 		Use:     "go-vault",
 		Short:   "Production PostgreSQL backup service powered by pg_dump",
-		Long:    "Schedule, store, list, and restore PostgreSQL backups using the official pg_dump/pg_restore binaries.",
+		Long:    "Schedule, store, list, and restore PostgreSQL backups using official pg_dump (plain SQL + gzip) and psql.",
 		Version: version.Version,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cmd.Help()

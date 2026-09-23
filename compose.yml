@@ -17,7 +17,7 @@ services:
       retries: 10
 
   go-vault:
-    container_name: go-vault
+    container_name: go-vault-dev
     # image: sboy99/go-vault:latest
     build:
       context: .
@@ -28,7 +28,7 @@ services:
         - GO_VAULT_COMMIT_HASH=$(git rev-parse --short HEAD)
         - GO_VAULT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
         - GO_VAULT_TAGS=$(git tag --points-at HEAD)
-        - GO_VAULT_REVISION=$(git rev-parse HEAD)
+        - GO_VAULT_REVISION=$(git rev-parse HEAD || echo "unknown")
     environment:
       GO_VAULT_DB_HOST: postgres
       GO_VAULT_DB_PORT: "5432"

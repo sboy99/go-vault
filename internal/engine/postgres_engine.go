@@ -3,6 +3,7 @@ package engine
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"database/sql"
 	"fmt"
@@ -13,13 +14,14 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 
 	_ "github.com/lib/pq"
 	"github.com/sboy99/go-vault/internal/domain"
 )
 
-// PostgresEngine runs official pg_dump / pg_restore binaries.
+// PostgresEngine runs official pg_dump / psql binaries.
 type PostgresEngine struct {
 	BinRoots []string
 }
@@ -27,6 +29,12 @@ type PostgresEngine struct {
 var _ domain.DumpEngine = (*PostgresEngine)(nil)
 
 var versionMajorRE = regexp.MustCompile(`\(PostgreSQL\)\s+(\d+)`)
+
+const (
+	dumpHeaderMarker   = "PostgreSQL database dump"
+	brandingMarker     = "go-vault backup"
+	dumpBrandingBanner = "--\n-- go-vault backup\n--\n"
+)
 
 func NewPostgresEngine() *PostgresEngine {
 	return &PostgresEngine{
@@ -38,7 +46,7 @@ func NewPostgresEngine() *PostgresEngine {
 	}
 }
 
-// DumpTo streams a custom-format dump to w.
+// DumpTo streams a gzip-compressed plain-SQL dump to w.
 func (e *PostgresEngine) DumpTo(ctx context.Context, p domain.ConnParams, w io.Writer) (*domain.DumpResult, error) {
 	major, version, err := e.serverMajor(ctx, p)
 	if err != nil {
@@ -52,8 +60,11 @@ func (e *PostgresEngine) DumpTo(ctx context.Context, p domain.ConnParams, w io.W
 	dsn := buildDSN(p)
 	cmd := exec.CommandContext(ctx, bin,
 		"--dbname="+dsn,
-		"--format=custom",
-		"--compress=9",
+		"--format=plain",
+		"--clean",
+		"--if-exists",
+		"--no-owner",
+		"--no-acl",
 		"--lock-wait-timeout=60000",
 		"--no-password",
 		"--verbose",
@@ -74,10 +85,24 @@ func (e *PostgresEngine) DumpTo(ctx context.Context, p domain.ConnParams, w io.W
 
 	done := make(chan error, 1)
 	go func() {
-		_, copyErr := io.Copy(w, stdout)
+		gz := gzip.NewWriter(w)
+		_, bannerErr := io.WriteString(gz, dumpBrandingBanner)
+		var copyErr error
+		if bannerErr == nil {
+			_, copyErr = io.Copy(gz, stdout)
+		}
+		closeErr := gz.Close()
 		waitErr := cmd.Wait()
+		if bannerErr != nil {
+			done <- bannerErr
+			return
+		}
 		if copyErr != nil {
 			done <- copyErr
+			return
+		}
+		if closeErr != nil {
+			done <- closeErr
 			return
 		}
 		done <- waitErr
@@ -94,17 +119,17 @@ func (e *PostgresEngine) DumpTo(ctx context.Context, p domain.ConnParams, w io.W
 	}, nil
 }
 
-// Verify runs pg_restore --list on a dump file path.
+// Verify checks that dumpPath is a valid gzip-compressed PostgreSQL plain SQL dump.
 func (e *PostgresEngine) Verify(ctx context.Context, dumpPath string, serverMajor int) error {
-	bin, err := e.resolveBinary("pg_restore", serverMajor)
-	if err != nil {
-		return err
-	}
-	return listArchive(ctx, bin, dumpPath)
+	_ = ctx
+	_ = serverMajor
+	return verifyGzipSQLDump(dumpPath)
 }
 
-// Restore applies a custom-format dump from dumpPath into the target database.
+// Restore applies a gzip-compressed plain-SQL dump from dumpPath into the target database.
+// jobs is ignored; plain SQL restores are single-threaded via psql.
 func (e *PostgresEngine) Restore(ctx context.Context, p domain.ConnParams, dumpPath string, jobs int) error {
+	_ = jobs
 	if _, err := os.Stat(dumpPath); err != nil {
 		return fmt.Errorf("dump file: %w", err)
 	}
@@ -112,159 +137,50 @@ func (e *PostgresEngine) Restore(ctx context.Context, p domain.ConnParams, dumpP
 	if err != nil {
 		return err
 	}
-	matching, err := e.resolveBinary("pg_restore", major)
+	psql, err := e.resolveBinary("psql", major)
 	if err != nil {
 		return err
 	}
-	if jobs < 1 {
-		jobs = 1
-	}
 
-	if err := listArchive(ctx, matching, dumpPath); err == nil {
-		return e.directRestore(ctx, p, dumpPath, matching, jobs)
-	}
-
-	newer, err := e.resolveReadableRestore(ctx, dumpPath, major)
+	f, err := os.Open(dumpPath)
 	if err != nil {
-		return fmt.Errorf("archive unreadable by pg_restore %d and no newer client can list it: %w", major, err)
+		return fmt.Errorf("open dump: %w", err)
 	}
-	return e.compatRestore(ctx, p, dumpPath, newer, major)
-}
+	defer func() { _ = f.Close() }()
 
-func (e *PostgresEngine) directRestore(ctx context.Context, p domain.ConnParams, dumpPath, bin string, jobs int) error {
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		return fmt.Errorf("gzip open: %w", err)
+	}
+
+	filtered, waitFilter := filterTransactionTimeout(gz)
+	defer func() {
+		_ = filtered.Close()
+		waitFilter()
+		_ = gz.Close()
+	}()
+
 	dsn := buildDSN(p)
-	cmd := exec.CommandContext(ctx, bin,
+	cmd := exec.CommandContext(ctx, psql,
 		"--dbname="+dsn,
-		"--clean",
-		"--if-exists",
-		"--no-owner",
-		"--no-acl",
-		"--jobs="+strconv.Itoa(jobs),
-		"--verbose",
+		"--set=ON_ERROR_STOP=1",
 		"--no-password",
-		dumpPath,
 	)
 	cmd.Env = append(os.Environ(), "PGPASSWORD="+p.Password)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	stderr := &boundedBuffer{max: 256 << 10}
 	cmd.Stderr = stderr
 	cmd.Stdout = io.Discard
+	cmd.Stdin = filtered
 
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("start pg_restore: %w", err)
+		return fmt.Errorf("start psql: %w", err)
 	}
 
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
 
-	return waitOrKill(ctx, cmd, done, "pg_restore", stderr)
-}
-
-// compatRestore converts a newer-format dump to SQL with a newer pg_restore,
-// strips SET transaction_timeout (unsupported on servers < 17), and loads via psql.
-func (e *PostgresEngine) compatRestore(ctx context.Context, p domain.ConnParams, dumpPath, pgRestore string, serverMajor int) error {
-	psql, err := e.resolveBinary("psql", serverMajor)
-	if err != nil {
-		return err
-	}
-
-	restoreCmd := exec.CommandContext(ctx, pgRestore,
-		"--clean",
-		"--if-exists",
-		"--no-owner",
-		"--no-acl",
-		"--verbose",
-		"--no-password",
-		"-f", "-",
-		dumpPath,
-	)
-	restoreCmd.Env = append(os.Environ(), "PGPASSWORD="+p.Password)
-	restoreCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	restoreErr := &boundedBuffer{max: 256 << 10}
-	restoreCmd.Stderr = restoreErr
-
-	stdout, err := restoreCmd.StdoutPipe()
-	if err != nil {
-		return fmt.Errorf("pg_restore stdout pipe: %w", err)
-	}
-
-	filtered := filterTransactionTimeout(stdout)
-	defer func() { _ = filtered.Close() }()
-
-	dsn := buildDSN(p)
-	psqlCmd := exec.CommandContext(ctx, psql,
-		"--dbname="+dsn,
-		"--set=ON_ERROR_STOP=1",
-		"--no-password",
-	)
-	psqlCmd.Env = append(os.Environ(), "PGPASSWORD="+p.Password)
-	psqlCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	psqlErr := &boundedBuffer{max: 256 << 10}
-	psqlCmd.Stderr = psqlErr
-	psqlCmd.Stdout = io.Discard
-	psqlCmd.Stdin = filtered
-
-	if err := restoreCmd.Start(); err != nil {
-		return fmt.Errorf("start pg_restore (compat): %w", err)
-	}
-	if err := psqlCmd.Start(); err != nil {
-		killProcessGroup(restoreCmd)
-		_ = restoreCmd.Wait()
-		return fmt.Errorf("start psql (compat): %w", err)
-	}
-
-	doneRestore := make(chan error, 1)
-	donePsql := make(chan error, 1)
-	go func() { doneRestore <- restoreCmd.Wait() }()
-	go func() { donePsql <- psqlCmd.Wait() }()
-
-	var restoreWaitErr, psqlWaitErr error
-	gotRestore, gotPsql := false, false
-	for !gotRestore || !gotPsql {
-		var restoreCh <-chan error
-		var psqlCh <-chan error
-		if !gotRestore {
-			restoreCh = doneRestore
-		}
-		if !gotPsql {
-			psqlCh = donePsql
-		}
-		select {
-		case <-ctx.Done():
-			_ = filtered.Close()
-			killProcessGroup(restoreCmd)
-			killProcessGroup(psqlCmd)
-			if !gotRestore {
-				<-doneRestore
-			}
-			if !gotPsql {
-				<-donePsql
-			}
-			return fmt.Errorf("compat restore cancelled: %w", ctx.Err())
-		case err := <-restoreCh:
-			restoreWaitErr = err
-			gotRestore = true
-			if err != nil {
-				_ = filtered.Close()
-				killProcessGroup(psqlCmd)
-			}
-		case err := <-psqlCh:
-			psqlWaitErr = err
-			gotPsql = true
-			_ = filtered.Close()
-			if !gotRestore {
-				killProcessGroup(restoreCmd)
-			}
-		}
-	}
-
-	if restoreWaitErr != nil {
-		return fmt.Errorf("pg_restore (compat) failed: %w\nstderr: %s", restoreWaitErr, restoreErr.String())
-	}
-	if psqlWaitErr != nil {
-		return fmt.Errorf("psql (compat) failed: %w\nstderr: %s", psqlWaitErr, psqlErr.String())
-	}
-	return nil
+	return waitOrKill(ctx, cmd, done, "psql", stderr)
 }
 
 // ServerVersion returns the remote PostgreSQL version string and major number.
@@ -273,10 +189,51 @@ func (e *PostgresEngine) ServerVersion(ctx context.Context, p domain.ConnParams)
 	return version, major, err
 }
 
+func verifyGzipSQLDump(dumpPath string) error {
+	f, err := os.Open(dumpPath)
+	if err != nil {
+		return fmt.Errorf("open dump: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		return fmt.Errorf("gzip open: %w", err)
+	}
+
+	header := make([]byte, 512)
+	n, err := io.ReadFull(gz, header)
+	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+		_ = gz.Close()
+		return fmt.Errorf("read dump header: %w", err)
+	}
+	if !bytes.Contains(header[:n], []byte(brandingMarker)) {
+		_ = gz.Close()
+		return fmt.Errorf("missing go-vault branding header")
+	}
+	if !bytes.Contains(header[:n], []byte(dumpHeaderMarker)) {
+		_ = gz.Close()
+		return fmt.Errorf("not a PostgreSQL plain SQL dump")
+	}
+
+	if _, err := io.Copy(io.Discard, gz); err != nil {
+		_ = gz.Close()
+		return fmt.Errorf("gzip verify: %w", err)
+	}
+	if err := gz.Close(); err != nil {
+		return fmt.Errorf("gzip close: %w", err)
+	}
+	return nil
+}
+
 func (e *PostgresEngine) serverMajor(ctx context.Context, p domain.ConnParams) (int, string, error) {
+	ssl := p.SSLMode
+	if ssl == "" {
+		ssl = "require"
+	}
 	connStr := fmt.Sprintf(
 		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		p.Host, p.Port, p.Username, p.Password, p.Name, p.SSLMode,
+		p.Host, p.Port, p.Username, p.Password, p.Name, ssl,
 	)
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
@@ -303,43 +260,6 @@ func (e *PostgresEngine) serverMajor(ctx context.Context, p domain.ConnParams) (
 func (e *PostgresEngine) resolveBinary(name string, serverMajor int) (string, error) {
 	candidates := e.collectCandidates(name, serverMajor)
 	return pickBest(name, serverMajor, candidates)
-}
-
-// resolveReadableRestore finds a pg_restore newer than serverMajor that can list dumpPath.
-func (e *PostgresEngine) resolveReadableRestore(ctx context.Context, dumpPath string, serverMajor int) (string, error) {
-	candidates := e.collectCandidates("pg_restore", serverMajor+1)
-	var lastErr error
-	bestPath := ""
-	bestMajor := -1
-	for _, path := range candidates {
-		info, err := os.Stat(path)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		if info.IsDir() {
-			continue
-		}
-		maj := binaryMajor(path)
-		if maj <= serverMajor {
-			continue
-		}
-		if err := listArchive(ctx, path, dumpPath); err != nil {
-			lastErr = err
-			continue
-		}
-		if bestMajor < 0 || maj < bestMajor {
-			bestMajor = maj
-			bestPath = path
-		}
-	}
-	if bestPath != "" {
-		return bestPath, nil
-	}
-	if lastErr != nil {
-		return "", lastErr
-	}
-	return "", fmt.Errorf("no newer pg_restore found that can read the archive")
 }
 
 func (e *PostgresEngine) collectCandidates(name string, minMajor int) []string {
@@ -416,21 +336,6 @@ func pickBest(name string, serverMajor int, candidates []string) (string, error)
 	return "", fmt.Errorf("no compatible %s found for server major %d (install postgresql-client-%d or newer)", name, serverMajor, serverMajor)
 }
 
-func listArchive(ctx context.Context, bin, dumpPath string) error {
-	cmd := exec.CommandContext(ctx, bin, "--list", dumpPath)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	stderr := &boundedBuffer{max: 64 << 10}
-	cmd.Stderr = stderr
-	out, err := cmd.Output()
-	if err != nil {
-		return fmt.Errorf("pg_restore --list failed: %w\nstderr: %s", err, stderr.String())
-	}
-	if len(bytes.TrimSpace(out)) == 0 {
-		return fmt.Errorf("pg_restore --list produced empty listing")
-	}
-	return nil
-}
-
 func waitOrKill(ctx context.Context, cmd *exec.Cmd, done <-chan error, name string, stderr *boundedBuffer) error {
 	select {
 	case <-ctx.Done():
@@ -483,30 +388,49 @@ func majorFromVersion(path string) int {
 }
 
 // filterTransactionTimeout drops SET transaction_timeout lines (PostgreSQL 17+ only).
-func filterTransactionTimeout(r io.Reader) *io.PipeReader {
+// Long lines (COPY rows) that exceed the read buffer are passed through unchanged.
+// The returned wait function blocks until the filter goroutine has exited; call it
+// after closing the PipeReader and before closing r.
+func filterTransactionTimeout(r io.Reader) (*io.PipeReader, func()) {
 	pr, pw := io.Pipe()
-	go func() {
+	var wg sync.WaitGroup
+	wg.Go(func() {
 		defer func() { _ = pw.Close() }()
-		scanner := bufio.NewScanner(r)
-		buf := make([]byte, 0, 64*1024)
-		scanner.Buffer(buf, 16*1024*1024)
-		for scanner.Scan() {
-			line := scanner.Text()
-			trimmed := strings.TrimSpace(line)
-			if strings.HasPrefix(trimmed, "SET transaction_timeout =") ||
-				strings.HasPrefix(trimmed, "set transaction_timeout =") {
+		br := bufio.NewReaderSize(r, 64*1024)
+		for {
+			chunk, err := br.ReadSlice('\n')
+			if len(chunk) > 0 {
+				if err == bufio.ErrBufferFull {
+					// Fragment of a long line — never a short SET statement. Pass through.
+					if _, werr := pw.Write(chunk); werr != nil {
+						_ = pw.CloseWithError(werr)
+						return
+					}
+				} else {
+					trimmed := strings.TrimSpace(string(chunk))
+					skip := strings.HasPrefix(trimmed, "SET transaction_timeout =") ||
+						strings.HasPrefix(trimmed, "set transaction_timeout =")
+					if !skip {
+						if _, werr := pw.Write(chunk); werr != nil {
+							_ = pw.CloseWithError(werr)
+							return
+						}
+					}
+				}
+			}
+			if err == bufio.ErrBufferFull {
 				continue
 			}
-			if _, err := io.WriteString(pw, line+"\n"); err != nil {
+			if err == io.EOF {
+				return
+			}
+			if err != nil {
 				_ = pw.CloseWithError(err)
 				return
 			}
 		}
-		if err := scanner.Err(); err != nil {
-			_ = pw.CloseWithError(err)
-		}
-	}()
-	return pr
+	})
+	return pr, wg.Wait
 }
 
 func buildDSN(p domain.ConnParams) string {

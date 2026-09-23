@@ -64,7 +64,7 @@ func NewBackup(name string, dbType DatabaseType, storageType StorageType) *Backu
 		Status:       StatusRunning,
 		StartedAt:    now,
 		CreatedAt:    now,
-		Format:       "custom",
+		Format:       "sql.gz",
 	}
 }
 

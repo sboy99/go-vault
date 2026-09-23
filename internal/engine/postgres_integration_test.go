@@ -82,7 +82,7 @@ func TestDumpDropRestore(t *testing.T) {
 
 	eng := engine.NewPostgresEngine()
 	dir := t.TempDir()
-	dumpPath := filepath.Join(dir, "test.dump")
+	dumpPath := filepath.Join(dir, "test.sql.gz")
 	f, err := os.Create(dumpPath)
 	if err != nil {
 		t.Fatal(err)

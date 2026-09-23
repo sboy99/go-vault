@@ -1,6 +1,6 @@
 # Go-Vault
 
-PostgreSQL backup service. It dumps with the official `pg_dump` / `pg_restore` binaries, stores artifacts on local disk or S3, keeps a cycle rollup retention set (7 daily / 4 weekly / 12 monthly by default), and runs the schedule inside one process.
+PostgreSQL backup service. It dumps with the official `pg_dump` binary as plain SQL, compresses with gzip, stores artifacts on local disk or S3, restores with `psql`, keeps a cycle rollup retention set (7 daily / 4 weekly / 12 monthly by default), and runs the schedule inside one process.
 
 The Docker image ships three things:
 
@@ -78,7 +78,7 @@ Two binaries share the same config and services. `go-vault` does not run the sch
 
 ### On the host
 
-Requires Go 1.25+ and `pg_dump` / `pg_restore` / `psql` matching the server major when possible. A newer client can dump an older server, but restoring into that server needs a matching (or carefully filtered) client.
+Requires Go 1.25+ and `pg_dump` / `psql` matching the server major when possible. A newer `pg_dump` can dump an older server; restore filters unsupported settings such as `transaction_timeout` so older servers can load the SQL.
 
 ```bash
 make build
@@ -91,7 +91,7 @@ make build
 
 `setup` is interactive. It asks for the database and, if you pick cloud storage, the S3 bucket, then writes `config.yml` in the working directory. Other commands read that file and overlay `GO_VAULT_*` environment variables.
 
-`backup restore` asks you to type the database name before it runs `pg_restore`.
+`backup restore` asks you to type the database name before it gunzips the dump and runs `psql`.
 
 ### Inside the container
 
@@ -118,7 +118,7 @@ When `GO_VAULT_API_TOKEN` is set, send `Authorization: Bearer <token>` on every 
 | GET | `/metrics` | Prometheus |
 | GET | `/v1/backups` | List backups (`limit`, `offset`, `status`) |
 | GET | `/v1/backups/{id}` | One backup. `id` is the backup id or the artifact name |
-| GET | `/v1/backups/{id}/download` | Download the custom-format dump |
+| GET | `/v1/backups/{id}/download` | Download the gzip-compressed SQL dump |
 | POST | `/v1/backups` | Start a backup job, then prune |
 | POST | `/v1/restores` | Start a restore job |
 | GET | `/v1/jobs` | List jobs (`limit`, `offset`) |
@@ -232,9 +232,9 @@ The scheduler starts with `go-vault-server`. It will not start a new dump while 
 | `GO_VAULT_RUNTIME_META_DB_PATH` | `./go-vault.db` | BoltDB path. The image uses `/data/meta/go-vault.db` |
 | `GO_VAULT_RUNTIME_TEMP_DIR` | `/tmp/go-vault` | Spool for verify and restore |
 | `GO_VAULT_RUNTIME_DUMP_TIMEOUT` | `2h` | `pg_dump` timeout |
-| `GO_VAULT_RUNTIME_RESTORE_TIMEOUT` | `2h` | `pg_restore` timeout |
+| `GO_VAULT_RUNTIME_RESTORE_TIMEOUT` | `2h` | `psql` restore timeout |
 | `GO_VAULT_RUNTIME_SHUTDOWN_TIMEOUT` | `5m` | Grace period on SIGINT / SIGTERM |
-| `GO_VAULT_RUNTIME_RESTORE_JOBS` | `4` | Parallel jobs passed to `pg_restore` |
+| `GO_VAULT_RUNTIME_RESTORE_JOBS` | `4` | Unused for plain SQL restores (kept for config compatibility) |
 | `GO_VAULT_RUNTIME_ALERT_WEBHOOK` | empty | POST a JSON body on backup or restore failure |
 
 Webhook body:
@@ -247,14 +247,14 @@ Webhook body:
 
 ## What a backup does
 
-1. `pg_dump -Fc` writes a custom-format dump.
-2. `pg_restore --list` checks that the archive can be read.
+1. `pg_dump --format=plain --clean --if-exists` writes SQL; the stream is gzip-compressed to a `.sql.gz` file.
+2. The compressed file is checked (gzip integrity plus a PostgreSQL dump header).
 3. The file is streamed to local disk or S3. Metadata (id, name, size, sha256, Postgres version, status) is stored in BoltDB.
 4. Retention deletes artifacts that the cycle rollup no longer keeps.
 
 On startup the server reconciles BoltDB with the files it can still see in storage.
 
-Restore runs `pg_restore --clean --if-exists` into the configured database. A failed restore can leave that database partially rewritten. Take a fresh backup before restoring when you can.
+Restore gunzips the `.sql.gz` and pipes the SQL into `psql` with `ON_ERROR_STOP`. The dump already includes `DROP ... IF EXISTS` from `--clean --if-exists`. A failed restore can leave that database partially rewritten. Take a fresh backup before restoring when you can.
 
 ## Build from source
 
@@ -264,7 +264,7 @@ make test
 docker build -t go-vault:dev .
 ```
 
-The image installs PostgreSQL client 15, 16, and 17 and prefers the client that matches the server major. Archives written by a newer `pg_dump` are restored through a filtered SQL path (single-threaded via `psql`) so older servers do not see unsupported settings such as `transaction_timeout`.
+The image installs PostgreSQL client 15, 16, and 17 and prefers the client that matches the server major. SQL from a newer `pg_dump` is filtered on restore so older servers do not see unsupported settings such as `transaction_timeout`.
 
 UI-only development (the dashboard against a running API, or demo fixtures) is documented in [`ui/README.md`](ui/README.md).
 
