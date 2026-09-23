@@ -149,7 +149,7 @@ const mockStats: BackupStats = {
 };
 
 const mockConfig: RedactedConfig = {
-  app: { name: "go-vault", version: "0.3.0" },
+  app: { name: "go-vault", version: "0.3.1" },
   db: {
     type: "POSTGRESQL",
     host: "db.internal",
