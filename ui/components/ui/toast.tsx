@@ -33,18 +33,18 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="pointer-events-none fixed right-4 bottom-4 z-50 flex w-80 flex-col gap-2">
+      <div className="pointer-events-none fixed right-4 bottom-20 z-[60] flex w-80 flex-col gap-2">
         {items.map((t) => (
           <div
             key={t.id}
             className={cn(
-              "pointer-events-auto rounded-md border px-3 py-2 text-sm",
+              "pointer-events-auto rounded-md border bg-surface px-3 py-2 text-sm",
               t.tone === "success" &&
-                "border-brand-border bg-success-muted text-success",
+                "border-brand-border text-success",
               t.tone === "error" &&
-                "border-destructive/30 bg-destructive-muted text-destructive",
+                "border-destructive/30 text-destructive",
               t.tone === "info" &&
-                "border-info/30 bg-info-muted text-info",
+                "border-info/30 text-info",
             )}
           >
             {t.message}

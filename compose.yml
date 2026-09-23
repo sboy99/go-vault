@@ -17,18 +17,18 @@ services:
       retries: 10
 
   go-vault:
-    container_name: go-vault
-    image: sboy99/go-vault:latest
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile
-    #   args:
-    #     - GO_VAULT_VERSION=latest
-    #     - GO_VAULT_BUILD_DATE=$(date -u +%Y%m%d%H%M%S)
-    #     - GO_VAULT_COMMIT_HASH=$(git rev-parse --short HEAD)
-    #     - GO_VAULT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-    #     - GO_VAULT_TAGS=$(git tag --points-at HEAD)
-    #     - GO_VAULT_REVISION=$(git rev-parse HEAD)
+    container_name: go-vault-dev
+    # image: sboy99/go-vault:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - GO_VAULT_VERSION=latest
+        - GO_VAULT_BUILD_DATE=$(date -u +%Y%m%d%H%M%S)
+        - GO_VAULT_COMMIT_HASH=$(git rev-parse --short HEAD)
+        - GO_VAULT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+        - GO_VAULT_TAGS=$(git tag --points-at HEAD)
+        - GO_VAULT_REVISION=$(git rev-parse HEAD || echo "unknown")
     environment:
       GO_VAULT_DB_HOST: postgres
       GO_VAULT_DB_PORT: "5432"
